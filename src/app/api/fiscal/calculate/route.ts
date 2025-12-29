@@ -47,9 +47,33 @@ export async function POST(request: NextRequest) {
     const body: FiscalCalculationRequest = await request.json();
     
     // Validação básica
-    if (!body.price || !body.currency || !body.weightKg || !body.ncm || !body.originCountry) {
+    if (!body.price || body.price <= 0) {
       return new Response(
-        JSON.stringify({ error: 'Missing required fields' }),
+        JSON.stringify({ error: 'Preço inválido ou não informado' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+    if (!body.currency) {
+      return new Response(
+        JSON.stringify({ error: 'Moeda não informada' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+    if (!body.weightKg || body.weightKg <= 0) {
+      return new Response(
+        JSON.stringify({ error: 'Peso inválido ou não informado' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+    if (!body.ncm) {
+      return new Response(
+        JSON.stringify({ error: 'NCM não informado' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+    if (!body.originCountry) {
+      return new Response(
+        JSON.stringify({ error: 'País de origem não informado' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
     }

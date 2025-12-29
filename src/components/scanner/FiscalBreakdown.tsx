@@ -34,7 +34,17 @@ const CountUp = ({ end, duration = 1 }: { end: number; duration?: number }) => {
   const [count, setCount] = useState(0);
 
   useEffect(() => {
+    // Reset count when end changes
+    setCount(0);
+    
+    if (end <= 0 || isNaN(end)) {
+      setCount(0);
+      return;
+    }
+
     let startTime: number | null = null;
+    let animationFrameId: number;
+    
     const animateCount = (timestamp: number) => {
       if (!startTime) startTime = timestamp;
       const progress = timestamp - startTime;
@@ -44,13 +54,19 @@ const CountUp = ({ end, duration = 1 }: { end: number; duration?: number }) => {
       setCount(currentCount);
       
       if (percentage < 1) {
-        requestAnimationFrame(animateCount);
+        animationFrameId = requestAnimationFrame(animateCount);
       } else {
         setCount(end);
       }
     };
     
-    requestAnimationFrame(animateCount);
+    animationFrameId = requestAnimationFrame(animateCount);
+    
+    return () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+    };
   }, [end, duration]);
 
   return <span>{formatBRL(count)}</span>;
@@ -76,6 +92,27 @@ export function FiscalBreakdown({
   guaranteeNote,
   onConfirm 
 }: FiscalBreakdownProps) {
+  // Verificações de segurança
+  if (!breakdown || !Array.isArray(breakdown) || breakdown.length === 0) {
+    return (
+      <Card className="border-destructive/20 bg-card p-6">
+        <p className="text-sm text-destructive">
+          Erro: breakdown fiscal não disponível.
+        </p>
+      </Card>
+    );
+  }
+
+  if (!totalGuaranteed || isNaN(totalGuaranteed)) {
+    return (
+      <Card className="border-destructive/20 bg-card p-6">
+        <p className="text-sm text-destructive">
+          Erro: total garantido inválido.
+        </p>
+      </Card>
+    );
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}

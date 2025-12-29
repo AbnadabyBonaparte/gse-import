@@ -24,7 +24,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useGSEApi } from "@/hooks/use-gse-api";
 import { ScannerState, VisionResult, HunterResult } from "@/types/gse";
 import ScannerInput from "@/components/scanner/ScannerInput";
-import FiscalVisionResultDisplay from "@/components/scanner/FiscalVisionResultDisplay";
+import VisionResultDisplay from "@/components/scanner/VisionResultDisplay";
 
 interface ScannerProps {
   open: boolean;

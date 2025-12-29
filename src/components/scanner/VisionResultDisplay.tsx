@@ -27,17 +27,30 @@ interface VisionResultDisplayProps {
 export default function VisionResultDisplay({
   visionResult,
   imagePreview,
-  hunterResults,
+  hunterResults = [],
   isSearching,
   handleSearch,
   handleRemoveImage,
 }: VisionResultDisplayProps) {
   const { exchangeRate } = useExchangeRate();
-  const { calculate, isLoading: isCalculating } = useFiscalCalculation();
+  const { calculate, isLoading: isCalculatingGlobal, error: fiscalError } = useFiscalCalculation();
   const [fiscalResults, setFiscalResults] = React.useState<Record<number, FiscalCalculationResponse>>({});
+  const [calculatingIndex, setCalculatingIndex] = React.useState<number | null>(null);
+
+  // Verificação de segurança
+  if (!visionResult) {
+    return (
+      <Card className="border-destructive/20 bg-card p-6">
+        <p className="text-sm text-muted-foreground">
+          Erro: resultado de identificação não disponível.
+        </p>
+      </Card>
+    );
+  }
 
   // Função para inferir país de origem baseado no marketplace
   const getOriginCountry = (marketplace: string): string => {
+    if (!marketplace) return 'US'; // Fallback seguro
     const marketplaceMap: Record<string, string> = {
       'eBay': 'US',
       'Taobao': 'CN',
@@ -59,21 +72,43 @@ export default function VisionResultDisplay({
   };
 
   const handleCalculateFiscal = async (result: HunterResult, index: number) => {
-    if (!visionResult.ncmSuggestion) {
-      alert('NCM não disponível. Complete a identificação da peça primeiro.');
+    if (!visionResult?.ncmSuggestion) {
+      console.warn('NCM não disponível para cálculo fiscal');
       return;
     }
 
-    const fiscalResult = await calculate({
-      price: result.price,
-      currency: result.currency,
-      weightKg: estimateWeight(),
-      ncm: visionResult.ncmSuggestion,
-      originCountry: getOriginCountry(result.marketplace),
-    });
+    if (!result?.price || !result?.currency || !result?.marketplace) {
+      console.error('Dados do resultado Hunter incompletos:', result);
+      return;
+    }
 
-    if (fiscalResult) {
-      setFiscalResults((prev) => ({ ...prev, [index]: fiscalResult }));
+    setCalculatingIndex(index);
+    try {
+      console.log('Calculando custo fiscal para:', { 
+        price: result.price, 
+        currency: result.currency, 
+        ncm: visionResult.ncmSuggestion,
+        originCountry: getOriginCountry(result.marketplace)
+      });
+      
+      const fiscalResult = await calculate({
+        price: result.price,
+        currency: result.currency,
+        weightKg: estimateWeight(),
+        ncm: visionResult.ncmSuggestion,
+        originCountry: getOriginCountry(result.marketplace),
+      });
+
+      if (fiscalResult) {
+        console.log('Cálculo fiscal concluído:', fiscalResult);
+        setFiscalResults((prev) => ({ ...prev, [index]: fiscalResult }));
+      } else {
+        console.warn('Cálculo fiscal retornou null');
+      }
+    } catch (error) {
+      console.error('Erro ao calcular custo fiscal:', error);
+    } finally {
+      setCalculatingIndex(null);
     }
   };
 
@@ -95,7 +130,7 @@ export default function VisionResultDisplay({
             </div>
           </div>
 
-          {visionResult.compatibility.length > 0 && (
+          {visionResult.compatibility && visionResult.compatibility.length > 0 && (
             <div className="space-y-2">
               <p className="text-sm font-medium text-foreground">
                 Compatível com:
@@ -320,9 +355,10 @@ export default function VisionResultDisplay({
                         size="sm"
                         className="flex-1"
                         onClick={() => handleCalculateFiscal(result, index)}
-                        disabled={isCalculating || !visionResult.ncmSuggestion}
+                        disabled={calculatingIndex === index || !visionResult?.ncmSuggestion}
+                        title={!visionResult?.ncmSuggestion ? 'NCM não disponível' : 'Calcular custo total garantido'}
                       >
-                        {isCalculating ? (
+                        {calculatingIndex === index ? (
                           <>
                             <Loader2 className="mr-2 h-3 w-3 animate-spin" />
                             Calculando...
@@ -344,6 +380,9 @@ export default function VisionResultDisplay({
           {/* Exibir breakdowns fiscais */}
           {Object.entries(fiscalResults).map(([indexStr, fiscalResult]) => {
             const index = parseInt(indexStr);
+            if (!fiscalResult || !fiscalResult.breakdown || !fiscalResult.totalGuaranteed) {
+              return null;
+            }
             return (
               <motion.div
                 key={`fiscal-${index}`}
@@ -354,7 +393,7 @@ export default function VisionResultDisplay({
                 <FiscalBreakdown
                   breakdown={fiscalResult.breakdown}
                   totalGuaranteed={fiscalResult.totalGuaranteed}
-                  guaranteeNote={fiscalResult.guaranteeNote}
+                  guaranteeNote={fiscalResult.guaranteeNote || 'GSE cobre a diferença se o imposto exceder o cálculo'}
                   onConfirm={() => {
                     // TODO: Implementar confirmação de pedido
                     alert('Funcionalidade de confirmação de pedido será implementada em breve.');
@@ -363,6 +402,15 @@ export default function VisionResultDisplay({
               </motion.div>
             );
           })}
+          
+          {/* Exibir erro fiscal se houver */}
+          {fiscalError && (
+            <Card className="border-destructive/20 bg-card p-4">
+              <p className="text-sm text-destructive">
+                Erro ao calcular custo: {fiscalError}
+              </p>
+            </Card>
+          )}
         </motion.div>
       )}
     </div>
