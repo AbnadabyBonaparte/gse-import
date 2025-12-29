@@ -1,11 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import Scanner from "@/components/scanner/Scanner";
 
 export default function HomePage() {
+  const [scannerOpen, setScannerOpen] = useState(false);
+
   return (
     <main className="min-h-screen bg-background">
       <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4">
@@ -48,6 +52,7 @@ export default function HomePage() {
               size="lg"
               variant="neon"
               className="group h-14 px-8 text-lg font-semibold"
+              onClick={() => setScannerOpen(true)}
             >
               <Camera className="mr-2 h-5 w-5 transition-transform group-hover:scale-110" />
               Tirar foto da peça →
@@ -87,6 +92,8 @@ export default function HomePage() {
           </motion.div>
         </motion.div>
       </section>
+
+      <Scanner open={scannerOpen} onOpenChange={setScannerOpen} />
     </main>
   );
 }
