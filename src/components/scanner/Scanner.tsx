@@ -136,20 +136,35 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
     }
   };
 
-  // CORREÇÃO 2: Hunter com query otimizada para código OEM e peça simples
+  // CORREÇÃO 2: Hunter com query otimizada e segura (nunca vazia)
   const handleSearch = async () => {
-    if (!visionResult || isLoading) return;
+    if (!visionResult) {
+      toast({
+        title: "Aguardando identificação",
+        description: "Identifique a peça primeiro para buscar opções.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (isLoading) return;
 
     toast({
       title: "Buscando no mundo...",
       description: "Varrendo eBay, RockAuto, Amazon e mais...",
     });
 
-    // Query enriquecida com código OEM entre aspas exatas
-    let query = visionResult.partName;
+    // Query enriquecida e segura - sempre tem pelo menos um termo
+    let query = visionResult.partName || "peça automotiva";
     if (visionResult.oemCode) query += ` "${visionResult.oemCode}"`;
-    if (visionResult.compatibility.length) query += ` ${visionResult.compatibility.join(" ")}`;
-    if (textInput.trim()) query += ` ${textInput.trim()}`;
+    if (visionResult.compatibility?.length) query += ` ${visionResult.compatibility.join(" ")}`;
+    if (textInput?.trim()) query += ` ${textInput.trim()}`;
+
+    // Garantir que a query não está vazia após construção
+    query = query.trim();
+    if (!query) {
+      query = "peça automotiva"; // Fallback absoluto
+    }
 
     const results = await searchPart({ query });
 
