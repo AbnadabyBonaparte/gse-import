@@ -16,13 +16,13 @@ Resolver a angústia da "peça impossível" com **autonomia total**:
 **Promessa inquebrável:** Custo Total Garantido. Se o imposto exceder o cálculo, o GSE assume a diferença.
 
 ---
-## 📊 Status Atual (29/12/2025)
+## 📊 Status Atual (27/01/2025)
 | Pilar                  | Status      |
 |------------------------|-------------|
 | Visão & Documentação   | 100%        |
 | Matriz Gênesis         | 100% (ativa)|
 | Governança Técnica     | 100%        |
-| Código Funcional       | 0% → início agora |
+| Código Funcional       | 25% (base frontend rodando localmente) |
 
 **A máquina tem alma. Agora ganha corpo.**
 

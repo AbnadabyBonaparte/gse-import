@@ -10,7 +10,7 @@
 - ✅ `package.json` - Dependências completas
 
 ### App Router (Next.js 15)
-- ✅ `src/app/layout.tsx` - Layout raiz com fonts (Inter + Geist Mono), metadata, dark mode
+- ✅ `src/app/layout.tsx` - Layout raiz com font Inter (Google Fonts), metadata, dark mode
 - ✅ `src/app/page.tsx` - Homepage com hero section, animações framer-motion
 - ✅ `src/app/globals.css` - CSS variables do Design System Borderless Premium
 
@@ -38,7 +38,7 @@
 
 ### Tipografia
 - **Sans:** Inter (via Google Fonts)
-- **Mono:** Geist Mono (opcional, fallback para monospace)
+- **Mono:** Monospace padrão do sistema
 
 ### Border Radius
 - **Default:** `0.75rem` (12px - borderless premium)
@@ -84,7 +84,7 @@ Após executar `npm run dev`, verifique:
 - [ ] 3 cards com features aparecem
 - [ ] Animações suaves de entrada funcionam
 - [ ] Dark mode está ativo (background quase preto)
-- [ ] Fontes carregam corretamente (Inter + Geist Mono ou fallback)
+- [ ] Fonte Inter carrega corretamente
 
 ## 📝 Notas Importantes
 

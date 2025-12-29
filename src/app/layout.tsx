@@ -1,20 +1,11 @@
-// src/app/layout.tsx
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import localFont from "next/font/local";
 import "./globals.css";
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
   display: "swap",
-});
-
-const geistMono = localFont({
-  src: "../fonts/GeistMonoVF.woff2",
-  variable: "--font-geist-mono",
-  display: "swap",
-  fallback: ["monospace"],
 });
 
 export const metadata: Metadata = {
@@ -37,7 +28,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" className="dark" suppressHydrationWarning>
       <body
-        className={`${inter.variable} ${geistMono.variable} font-sans antialiased`}
+        className={`${inter.variable} font-sans antialiased bg-background text-foreground`}
       >
         {children}
       </body>
