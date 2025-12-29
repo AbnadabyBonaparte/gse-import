@@ -12,7 +12,7 @@
 #### 1. **Documentação Estratégica Completa**
 - ✅ **Visão Estratégica**: Ecossistema global de sourcing inteligente definido
 - ✅ **Arquitetura de Agentes**: 4 agentes (Hunter, Fiscal, Concierge, Auditor) com fluxos definidos
-- ✅ **Stack Tecnológica**: n8n, Supabase, FlutterFlow/Bubble, APIs de IA mapeadas
+- ✅ **Stack Tecnológica**: Next.js 15 + shadcn/ui + Supabase + Drizzle ORM + n8n + IA Provider-Agnostic
 - ✅ **Roadmap**: 12 semanas do zero ao lançamento viral
 - ✅ **Caderno do Conhecimento**: 100 perguntas respondidas (a "bíblia" do projeto)
 - ✅ **Design System**: Borderless Premium com identidade automotiva completa

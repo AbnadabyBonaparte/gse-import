@@ -1,8 +1,10 @@
 # GSE 100% Autônomo: A Máquina que Roda Sozinha (n8n Edition)
 
+> **⚠️ NOTA:** Este documento contém comparações históricas com Make.com e Zapier para contexto. A stack atual do GSE Import é **n8n** (definida como imutável em `.cursorrules`).
+
 **Abnadaby**, o objetivo é claro: chegar num ponto em que o GSE funcione dia e noite sem você precisar tocar em 90% dos pedidos. Você vira supervisor, não operador. A ferramenta que vai orquestrar essa máquina toda é o **n8n** — e vou te explicar por quê e como, sem enrolação.
 
-## 1. Por que n8n e não Make.com ou Zapier?
+## 1. Por que n8n e não Make.com ou Zapier? (Contexto Histórico)
 
 - **Self-hosted:** Roda na sua VPS barata (R$100–200/mês). Zero limite de tarefas, zero surpresa na fatura quando crescer.
 - **AI Agent nativo:** Tem nó pronto de LangChain/LangGraph. Você cria agentes que pensam, tomam decisões e chamam ferramentas sozinhos.
