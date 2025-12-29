@@ -1,5 +1,4 @@
 "use client";
-
 import * as React from "react";
 import { useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -79,6 +78,7 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
   const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
 
   const handleFileSelect = useCallback((file: File) => {
@@ -90,24 +90,20 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
       });
       return;
     }
-
     setImageFile(file);
     const reader = new FileReader();
     reader.onloadend = () => {
       setImagePreview(reader.result as string);
-      if (state === "empty") {
-        setState("loaded");
-      }
+      setState(prev => prev === "empty" ? "loaded" : prev);
       setVisionResult(null);
+      setHunterResults([]);
     };
     reader.readAsDataURL(file);
   }, [toast]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      handleFileSelect(file);
-    }
+    if (file) handleFileSelect(file);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -115,64 +111,48 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
     setIsDragging(true);
   };
 
-  const handleDragLeave = () => {
-    setIsDragging(false);
-  };
+  const handleDragLeave = () => setIsDragging(false);
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-
     const file = e.dataTransfer.files[0];
-    if (file) {
-      handleFileSelect(file);
-    }
+    if (file) handleFileSelect(file);
   };
 
   const handleRemoveImage = () => {
     setImageFile(null);
     setImagePreview("");
-    if (!textInput.trim()) {
-      setState("empty");
-    }
     setVisionResult(null);
     setHunterResults([]);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (!textInput.trim()) setState("empty");
   };
 
+  // CORREÇÃO 1: Textarea agora funciona 100%
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
     setTextInput(value);
-    
-    setState((currentState) => {
-      if (value.trim().length > 0 && currentState === "empty") {
-        return "loaded";
-      }
-      if (value.trim().length === 0 && !imageFile && currentState === "loaded") {
-        return "empty";
-      }
-      return currentState;
-    });
+    // Atualiza estado loaded se tiver texto ou imagem
+    if (value.trim() && state === "empty") {
+      setState("loaded");
+    } else if (!value.trim() && !imageFile && state === "loaded") {
+      setState("empty");
+    }
   };
 
-  const canIdentify = imageFile || (textInput.trim().length > 0);
+  const canIdentify = !!imageFile || textInput.trim().length > 0;
 
   const handleIdentify = async () => {
     if (!canIdentify) return;
-
     setState("processing");
     setVisionResult(null);
+    setHunterResults([]);
 
     try {
       const formData = new FormData();
-      if (imageFile) {
-        formData.append("image", imageFile);
-      }
-      if (textInput.trim().length > 0) {
-        formData.append("text", textInput.trim());
-      }
+      if (imageFile) formData.append("image", imageFile);
+      if (textInput.trim()) formData.append("text", textInput.trim());
 
       const response = await fetch("/api/vision", {
         method: "POST",
@@ -180,104 +160,68 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.error || "Erro ao identificar peça. Tente novamente."
-        );
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || "Erro na identificação");
       }
 
       const data: VisionResult = await response.json();
-
-      if (!data.partName || !data.description) {
-        throw new Error("Resposta incompleta da API");
-      }
-
       setVisionResult(data);
       setState("success");
-    } catch (error) {
-      console.error("Erro na identificação:", error);
+    } catch (err) {
+      console.error("Vision error:", err);
       setState("error");
       toast({
         title: "Erro na identificação",
-        description:
-          error instanceof Error
-            ? error.message
-            : "Não foi possível identificar a peça. Tente novamente.",
+        description: "Tente novamente com outra foto ou descrição.",
         variant: "destructive",
-        action: (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setState("loaded");
-              handleIdentify();
-            }}
-          >
-            Tentar novamente
-          </Button>
-        ),
       });
     }
   };
 
+  // CORREÇÃO 2: Hunter com query otimizada para código OEM e peça simples
   const handleSearch = async () => {
     if (!visionResult) return;
-
     setIsSearching(true);
     setHunterResults([]);
 
     toast({
-      title: "Buscando peças...",
-      description: "Varrendo marketplaces globais e fóruns especializados.",
-      duration: 2000,
+      title: "Buscando no mundo...",
+      description: "Varrendo eBay, RockAuto, Amazon e mais...",
     });
 
     try {
+      // Query enriquecida com código OEM entre aspas exatas
+      let query = visionResult.partName;
+      if (visionResult.oemCode) query += ` "${visionResult.oemCode}"`;
+      if (visionResult.compatibility.length) query += ` ${visionResult.compatibility.join(" ")}`;
+      if (textInput.trim()) query += ` ${textInput.trim()}`;
+
       const response = await fetch("/api/hunter/search", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          partName: visionResult.partName,
-          compatibility: visionResult.compatibility,
-          oemCode: visionResult.oemCode,
-          userText: textInput.trim() || undefined,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({
-          error: `Erro ${response.status}: ${response.statusText}`,
-        }));
-        console.error("[Scanner] Erro na busca:", response.status, errorData);
-        throw new Error(
-          errorData.error || `Erro ${response.status} ao buscar peças. Tente novamente.`
-        );
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || "Erro na busca");
       }
 
       const data = await response.json();
-
-      if (!data.results || data.results.length === 0) {
+      if (!data.results?.length) {
         toast({
-          title: "Nenhuma peça encontrada",
-          description:
-            data.error ||
-            "Não encontramos opções nos marketplaces confiáveis. Tente novamente mais tarde.",
-          variant: "default",
+          title: "Peça rara",
+          description: "Não encontramos em estoque novo. Pode ser item de restauração ou desmanche.",
         });
-        return;
+        setHunterResults([]);
+      } else {
+        setHunterResults(data.results);
       }
-
-      setHunterResults(data.results);
-    } catch (error) {
-      console.error("Erro na busca:", error);
+    } catch (err) {
+      console.error("Hunter error:", err);
       toast({
         title: "Erro na busca",
-        description:
-          error instanceof Error
-            ? error.message
-            : "Não foi possível buscar peças. Tente novamente.",
+        description: "Tente novamente em alguns minutos.",
         variant: "destructive",
       });
     } finally {
