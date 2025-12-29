@@ -24,6 +24,8 @@
     --popover: 17 17 18;
     --popover-foreground: 250 250 250;
     --radius: 0.75rem;
+    --success: 0 229 153;
+    --warning: 255 184 0;
   }
 
   .dark {
@@ -46,6 +48,8 @@
     --ring: 0 229 153;
     --popover: 17 17 18;
     --popover-foreground: 250 250 250;
+    --success: 0 229 153;
+    --warning: 255 184 0;
   }
 }
 

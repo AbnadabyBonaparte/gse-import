@@ -1,24 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { extractCarInfo, checkCompatibility } from "@/lib/hunter/translations";
+import { HunterResult } from "@/types/gse";
 
 interface HunterSearchRequest {
   partName: string;
   compatibility?: string[];
   oemCode?: string;
   userText?: string;
-}
-
-interface SearchResult {
-  title: string;
-  url: string;
-  price: number;
-  currency: string;
-  seller: string;
-  marketplace: string;
-  imageUrl?: string;
-  shippingEstimate?: string;
-  rating?: number;
-  compatibility?: "confirmed" | "possible" | "unknown";
 }
 
 interface SerperShoppingResult {
@@ -184,7 +172,7 @@ export async function POST(request: NextRequest) {
       console.log("[Hunter] Resultados encontrados:", shoppingResults.length);
     }
 
-    let results: SearchResult[] = shoppingResults
+    let results: HunterResult[] = shoppingResults
       .slice(0, 8)
       .map((item) => {
         const priceMatch = item.price?.match(/[\d,]+\.?\d*/);

@@ -55,3 +55,4 @@ Todos os arquivos foram criados seguindo rigorosamente:
 - Estrutura de pastas conforme `.cursorrules`
 - Código limpo e profissional
 
+

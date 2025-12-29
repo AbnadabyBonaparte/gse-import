@@ -185,3 +185,4 @@ if __name__ == "__main__":
     for result in results:
         print(f"{result.title} - ${result.price_usd} - {result.marketplace}")
 
+

@@ -111,3 +111,4 @@ Posso fazer um orçamento completo com frete e impostos garantidos assim que tiv
 3. **Confiança Score**: Retornar nível de confiança (0-100%) da identificação
 4. **Sugestões Alternativas**: Se não encontrar exato, sugerir peças similares compatíveis
 
+

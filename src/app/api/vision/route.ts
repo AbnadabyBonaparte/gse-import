@@ -1,18 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
+import { VisionResult } from "@/types/gse";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
-
-interface VisionResponse {
-  description: string;
-  partName: string;
-  compatibility: string[];
-  confidence: number;
-  ncmSuggestion: string;
-  oemCode?: string;
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -120,7 +112,7 @@ Se não conseguir identificar com certeza (confiança < 70%), indique isso clara
       );
     }
 
-    let visionData: VisionResponse;
+    let visionData: VisionResult;
     try {
       visionData = JSON.parse(content);
     } catch (parseError) {

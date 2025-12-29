@@ -141,3 +141,4 @@
 
 **Status Final:** ✅ Evolução major implementada. Entrada híbrida, busca ampliada e polish visual completo.
 
+

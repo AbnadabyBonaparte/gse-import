@@ -48,3 +48,4 @@ echo "   2. Importe os workflows de infrastructure/n8n/workflows/"
 echo "   3. Configure as credenciais no n8n"
 echo ""
 
+

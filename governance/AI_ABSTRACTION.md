@@ -40,3 +40,4 @@ GROK_API_KEY=...
 - Testes mockam a interface comum
 
 **Esta abstração garante que os agentes funcionem independente do provider.**
+

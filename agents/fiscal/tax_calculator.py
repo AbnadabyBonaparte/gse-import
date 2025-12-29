@@ -159,3 +159,4 @@ if __name__ == "__main__":
     print(f"Impostos: R$ {breakdown.total_tax_brl:.2f}")
     print(f"TOTAL: R$ {breakdown.total_cost_brl:.2f}")
 
+

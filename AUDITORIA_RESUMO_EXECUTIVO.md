@@ -104,3 +104,4 @@ Os seguintes arquivos devem ser movidos para `docs/archive/`:
 **Relatório completo:** Ver `AUDITORIA_RELATORIO.md`  
 **Comandos PowerShell:** Ver `COMANDOS_POWERSHELL.md`
 
+

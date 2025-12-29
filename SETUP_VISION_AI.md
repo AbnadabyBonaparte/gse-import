@@ -58,3 +58,4 @@ Para o Scanner de Peças funcionar, você precisa configurar a chave da API Open
 
 **Pronto! O Scanner de Peças está funcional com Vision AI real.** 🏎️🔥
 
+

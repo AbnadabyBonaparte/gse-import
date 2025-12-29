@@ -1,4 +1,4 @@
-// src/components/scanner/Scanner.tsx
+// src/components/Scanner.tsx (Refatorado)
 "use client";
 import * as React from "react";
 import { useState, useRef, useCallback, useEffect } from "react";
@@ -104,13 +104,13 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
     setHunterResults([]);
     if (fileInputRef.current) fileInputRef.current.value = "";
     if (!textInput.trim()) setState("empty");
-    else setState("loaded");
+    else setState("loaded"); // Se houver texto, volta para loaded
   };
 
-  // CORREÇÃO 1: Textarea agora funciona 100%
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
     setTextInput(value);
+    // Atualiza estado loaded se tiver texto ou imagem
     if (value.trim() || imageFile) {
       setState("loaded");
     } else {
@@ -132,11 +132,11 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
       setVisionResult(result);
       setState("success");
     } else {
+      // O erro já é tratado pelo useEffect e useGSEApi
       setState("error");
     }
   };
 
-  // CORREÇÃO 2: Hunter com query otimizada para código OEM e peça simples
   const handleSearch = async () => {
     if (!visionResult || isLoading) return;
 
@@ -162,6 +162,7 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
       }
       setHunterResults(results);
     }
+    // O erro já é tratado pelo useEffect e useGSEApi
   };
 
   const handleClose = () => {
@@ -198,8 +199,6 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
             canIdentify={canIdentify}
             handleIdentify={handleIdentify}
             isProcessing={isLoading}
-            imagePreview={imagePreview}
-            handleRemoveImage={handleRemoveImage}
           />
         )}
 
