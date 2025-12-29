@@ -142,13 +142,19 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
     }
   };
 
-  const handleTextChange = (value: string) => {
+  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
     setTextInput(value);
-    if (value.trim().length > 0 && state === "empty") {
-      setState("loaded");
-    } else if (value.trim().length === 0 && !imageFile) {
-      setState("empty");
-    }
+    
+    setState((currentState) => {
+      if (value.trim().length > 0 && currentState === "empty") {
+        return "loaded";
+      }
+      if (value.trim().length === 0 && !imageFile && currentState === "loaded") {
+        return "empty";
+      }
+      return currentState;
+    });
   };
 
   const canIdentify = imageFile || (textInput.trim().length > 0);
@@ -219,6 +225,12 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
 
     setIsSearching(true);
     setHunterResults([]);
+
+    toast({
+      title: "Buscando peças...",
+      description: "Varrendo marketplaces globais e fóruns especializados.",
+      duration: 2000,
+    });
 
     try {
       const response = await fetch("/api/hunter/search", {
@@ -323,7 +335,7 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
                 id="text-input"
                 placeholder="Ex: Bomba d'água para VW Golf GTI 2015, código OEM 06H121026H, ou VIN: WVWZZZ1KZAW123456"
                 value={textInput}
-                onChange={(e) => handleTextChange(e.target.value)}
+                onChange={handleTextChange}
                 className="min-h-[120px] resize-none text-base"
                 aria-label="Campo de texto para descrever a peça"
               />

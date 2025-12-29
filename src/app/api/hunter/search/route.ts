@@ -51,7 +51,12 @@ export async function POST(request: NextRequest) {
     const body: HunterSearchRequest = await request.json();
 
     if (process.env.NODE_ENV === "development") {
-      console.log("[Hunter] Buscando:", body.partName);
+      console.log("[Hunter] Buscando:", {
+        partName: body.partName,
+        oemCode: body.oemCode,
+        compatibility: body.compatibility,
+        hasUserText: !!body.userText,
+      });
     }
 
     if (!body.partName || body.partName.trim().length === 0) {
@@ -66,16 +71,6 @@ export async function POST(request: NextRequest) {
       : body.compatibility && body.compatibility.length > 0
       ? extractCarInfo(body.compatibility[0])
       : {};
-
-    const queryParts = [body.partName];
-    if (body.compatibility && body.compatibility.length > 0) {
-      queryParts.push(body.compatibility[0]);
-    }
-    if (body.oemCode) {
-      queryParts.push(body.oemCode);
-    }
-
-    const searchQuery = queryParts.join(" ");
 
     const trustedMarketplaces = [
       "ebay.com",
@@ -99,8 +94,37 @@ export async function POST(request: NextRequest) {
 
     const forumQuery = forumSites.join(" OR ");
 
-    const marketplaceQuery = `${searchQuery} (${siteQuery})`;
-    const forumSearchQuery = `${searchQuery} (${forumQuery})`;
+    let primaryQuery = "";
+    let fallbackQuery = "";
+
+    if (body.oemCode && body.oemCode.trim().length > 0) {
+      const oemCode = body.oemCode.trim();
+      primaryQuery = `"${oemCode}" (${siteQuery})`;
+      
+      const queryParts = [body.partName];
+      if (body.compatibility && body.compatibility.length > 0) {
+        queryParts.push(body.compatibility[0]);
+      }
+      queryParts.push(oemCode);
+      fallbackQuery = `${queryParts.join(" ")} (${siteQuery})`;
+    } else {
+      const queryParts = [body.partName];
+      if (body.compatibility && body.compatibility.length > 0) {
+        queryParts.push(body.compatibility[0]);
+      }
+      if (body.userText) {
+        const userTerms = body.userText
+          .split(/\s+/)
+          .filter((term) => term.length > 3)
+          .slice(0, 3);
+        queryParts.push(...userTerms);
+      }
+      primaryQuery = `${queryParts.join(" ")} (${siteQuery})`;
+      fallbackQuery = `${body.partName} (${siteQuery})`;
+    }
+
+    const marketplaceQuery = primaryQuery;
+    const forumSearchQuery = `${body.partName} (${forumQuery})`;
 
     if (process.env.NODE_ENV === "development") {
       console.log("[Hunter] Query marketplaces:", marketplaceQuery);
@@ -160,7 +184,7 @@ export async function POST(request: NextRequest) {
       console.log("[Hunter] Resultados encontrados:", shoppingResults.length);
     }
 
-    const results: SearchResult[] = shoppingResults
+    let results: SearchResult[] = shoppingResults
       .slice(0, 8)
       .map((item) => {
         const priceMatch = item.price?.match(/[\d,]+\.?\d*/);
@@ -203,12 +227,80 @@ export async function POST(request: NextRequest) {
       })
       .slice(0, 5);
 
+    if (results.length === 0 && fallbackQuery && fallbackQuery !== marketplaceQuery) {
+      if (process.env.NODE_ENV === "development") {
+        console.log("[Hunter] Tentando busca fallback:", fallbackQuery);
+      }
+
+      try {
+        const fallbackResponse = await fetch("https://google.serper.dev/shopping", {
+          method: "POST",
+          headers: {
+            "X-API-KEY": process.env.SERPER_API_KEY,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            q: fallbackQuery,
+            num: 10,
+          }),
+        });
+
+        if (fallbackResponse.ok) {
+          const fallbackData = await fallbackResponse.json();
+          const fallbackShoppingResults: SerperShoppingResult[] =
+            fallbackData.shopping || fallbackData.organic || [];
+
+          results = fallbackShoppingResults
+            .slice(0, 5)
+            .map((item) => {
+              const priceMatch = item.price?.match(/[\d,]+\.?\d*/);
+              const price = priceMatch
+                ? parseFloat(priceMatch[0].replace(/,/g, ""))
+                : 0;
+
+              const currency = item.currency || "USD";
+              const marketplace = extractMarketplace(item.link);
+              const seller = extractSeller(item.source, item.link);
+
+              const compatibility = checkCompatibility(
+                item.title || "",
+                item.link,
+                carInfo.brand,
+                carInfo.model,
+                carInfo.year
+              );
+
+              return {
+                title: item.title || "Sem título",
+                url: item.link,
+                price,
+                currency,
+                seller,
+                marketplace,
+                imageUrl: item.thumbnail,
+                rating: item.rating,
+                compatibility,
+              };
+            })
+            .filter((item) => item.price > 0)
+            .sort((a, b) => a.price - b.price);
+        }
+      } catch (fallbackError) {
+        if (process.env.NODE_ENV === "development") {
+          console.error("[Hunter] Erro na busca fallback:", fallbackError);
+        }
+      }
+    }
+
     if (results.length === 0) {
       if (process.env.NODE_ENV === "development") {
         console.log("[Hunter] Nenhum resultado válido encontrado");
       }
       return NextResponse.json(
-        { results: [], error: "Nenhuma peça encontrada nos marketplaces confiáveis" },
+        {
+          results: [],
+          error: "Peça rara. Estamos buscando alternativas genéricas e em fóruns especializados. Tente novamente em alguns instantes ou forneça mais detalhes.",
+        },
         { status: 200 }
       );
     }

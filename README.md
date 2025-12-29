@@ -32,7 +32,7 @@ Resolver a angústia da "peça impossível" com **autonomia total**:
 | Visão & Documentação   | 100%        |
 | Matriz Gênesis         | 100% (ativa)|
 | Governança Técnica     | 100%        |
-| Código Funcional       | 95% (entrada híbrida, busca ampliada, polish visual completo) |
+| Código Funcional       | 97% (bugs críticos corrigidos, busca otimizada, fluxo completo robusto) |
 
 **A máquina tem alma. Agora ganha corpo.**
 
