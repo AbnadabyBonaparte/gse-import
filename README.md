@@ -13,6 +13,16 @@ Resolver a angústia da "peça impossível" com **autonomia total**:
 - Inspeção física + Vision AI automática
 - Entrega sem surpresas, rastreio em tempo real
 
+
+### Preview Atual (29/12/2025)
+
+![Homepage GSE Import - Base Frontend Completa](homepage-preview.png)
+
+- Design System Borderless Premium aplicado na prática
+- Fundo dark premium, hero imersiva, botão neon funcional, cards elevados
+- Código Funcional | 30% (base frontend completa e visualmente confirmada)
+- Próximo milestone: Scanner de Peças com upload e identificação por IA
+
 **Promessa inquebrável:** Custo Total Garantido. Se o imposto exceder o cálculo, o GSE assume a diferença.
 
 ---
