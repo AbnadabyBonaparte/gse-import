@@ -107,16 +107,17 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
     else setState("loaded");
   };
 
-  // CORREÇÃO 1: Textarea agora funciona 100%
-  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+  // CORREÇÃO 1: Textarea agora funciona 100% - sem limitações
+  const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
+    console.log("[Scanner] Textarea onChange:", value);
     setTextInput(value);
     if (value.trim() || imageFile) {
       setState("loaded");
     } else {
       setState("empty");
     }
-  };
+  }, [imageFile]);
 
   const canIdentify = !!imageFile || textInput.trim().length > 0;
 
@@ -136,9 +137,10 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
     }
   };
 
-  // CORREÇÃO 2: Hunter com query otimizada e segura (nunca vazia)
-  const handleSearch = async () => {
+  // CORREÇÃO 2: Hunter com payload correto (partName, compatibility, oemCode, userText)
+  const handleSearch = useCallback(async () => {
     if (!visionResult) {
+      console.warn("[Scanner] handleSearch chamado sem visionResult");
       toast({
         title: "Aguardando identificação",
         description: "Identifique a peça primeiro para buscar opções.",
@@ -147,28 +149,44 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
       return;
     }
 
-    if (isLoading) return;
+    if (isLoading) {
+      console.log("[Scanner] handleSearch ignorado - já está carregando");
+      return;
+    }
+
+    console.log("[Scanner] Iniciando busca Hunter com:", {
+      partName: visionResult.partName,
+      oemCode: visionResult.oemCode,
+      compatibility: visionResult.compatibility,
+      userText: textInput,
+    });
 
     toast({
       title: "Buscando no mundo...",
       description: "Varrendo eBay, RockAuto, Amazon e mais...",
     });
 
-    // Query enriquecida e segura - sempre tem pelo menos um termo
-    let query = visionResult.partName || "peça automotiva";
-    if (visionResult.oemCode) query += ` "${visionResult.oemCode}"`;
-    if (visionResult.compatibility?.length) query += ` ${visionResult.compatibility.join(" ")}`;
-    if (textInput?.trim()) query += ` ${textInput.trim()}`;
+    // Construir payload no formato esperado pela API Hunter
+    const payload = {
+      partName: visionResult.partName || "peça automotiva",
+      compatibility: visionResult.compatibility && visionResult.compatibility.length > 0 
+        ? visionResult.compatibility 
+        : undefined,
+      oemCode: visionResult.oemCode || undefined,
+      userText: textInput?.trim() || undefined,
+    };
 
-    // Garantir que a query não está vazia após construção
-    query = query.trim();
-    if (!query) {
-      query = "peça automotiva"; // Fallback absoluto
+    // Garantir que partName não está vazio
+    if (!payload.partName || payload.partName.trim().length === 0) {
+      payload.partName = "peça automotiva"; // Fallback absoluto
     }
 
-    const results = await searchPart({ query });
+    console.log("[Scanner] Payload final para Hunter:", payload);
+
+    const results = await searchPart(payload);
 
     if (results) {
+      console.log("[Scanner] Hunter retornou", results.length, "resultados");
       if (!results.length) {
         toast({
           title: "Peça rara",
@@ -176,8 +194,10 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
         });
       }
       setHunterResults(results);
+    } else {
+      console.warn("[Scanner] Hunter retornou null/undefined");
     }
-  };
+  }, [visionResult, textInput, isLoading, searchPart, toast]);
 
   const handleClose = () => {
     if (isLoading) return;
@@ -202,7 +222,7 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
       <AnimatePresence mode="wait">
         {(state === "empty" || state === "loaded") && (
           <ScannerInput
-            textInput={textInput}
+            textInput={textInput || ""}
             handleTextChange={handleTextChange}
             handleDrop={handleDrop}
             handleDragOver={handleDragOver}
@@ -213,7 +233,7 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
             canIdentify={canIdentify}
             handleIdentify={handleIdentify}
             isProcessing={isLoading}
-            imagePreview={imagePreview}
+            imagePreview={imagePreview || ""}
             handleRemoveImage={handleRemoveImage}
           />
         )}
@@ -230,8 +250,8 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
         {state === "success" && visionResult && (
           <VisionResultDisplay
             visionResult={visionResult}
-            imagePreview={imagePreview}
-            hunterResults={hunterResults}
+            imagePreview={imagePreview || ""}
+            hunterResults={hunterResults || []}
             isSearching={isLoading}
             handleSearch={handleSearch}
             handleRemoveImage={handleRemoveImage}

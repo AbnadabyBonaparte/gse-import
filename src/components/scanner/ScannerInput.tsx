@@ -49,10 +49,14 @@ export default function ScannerInput({
         <Textarea
           id="text-input"
           placeholder="Ex: Bomba d'água para VW Golf GTI 2015, código OEM 06H121026H, ou VIN: WVWZZZ1KZAW123456"
-          value={textInput}
+          value={textInput || ""}
           onChange={handleTextChange}
           className="min-h-[120px] resize-none text-base"
           aria-label="Campo de texto para descrever a peça"
+          onKeyDown={(e) => {
+            // Permitir todas as teclas normalmente
+            e.stopPropagation();
+          }}
         />
         <p className="text-xs text-muted-foreground">
           Informe marca, modelo, ano, código OEM, VIN ou qualquer referência que você tenha

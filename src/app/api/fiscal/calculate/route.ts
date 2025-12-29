@@ -46,6 +46,8 @@ export async function POST(request: NextRequest) {
   try {
     const body: FiscalCalculationRequest = await request.json();
     
+    console.log('[Fiscal API] Recebida requisição de cálculo:', body);
+    
     // Validação básica
     if (!body.price || body.price <= 0) {
       return new Response(
@@ -104,9 +106,9 @@ export async function POST(request: NextRequest) {
     const pisCofinsBase = customsValue + iiValue;
     const pisCofinsValue = (PIS_COFINS_RATE / 100) * pisCofinsBase;
     
-    // Calcular ICMS
+    // Calcular ICMS (fórmula correta: base * taxa / (100 - taxa))
     const icmsBase = customsValue + iiValue + ipiValue + pisCofinsValue;
-    const icmsValue = (ICMS_RATE / 100) * icmsBase;
+    const icmsValue = (ICMS_RATE / (100 - ICMS_RATE)) * icmsBase;
     
     // Calcular margem GSE
     const gseMarginBase = customsValue + iiValue + ipiValue + pisCofinsValue + icmsValue + SISCOMEX_FEE;
@@ -135,14 +137,21 @@ export async function POST(request: NextRequest) {
       guaranteeNote: "GSE cobre a diferença se o imposto exceder o cálculo"
     };
     
+    console.log('[Fiscal API] Cálculo concluído:', {
+      totalGuaranteed,
+      breakdownItems: breakdown.length,
+      exchangeRate
+    });
+    
     return new Response(
       JSON.stringify(response),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('Erro no cálculo fiscal:', error);
+    console.error('[Fiscal API] Erro no cálculo fiscal:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido no cálculo fiscal';
     return new Response(
-      JSON.stringify({ error: 'Erro no cálculo fiscal' }),
+      JSON.stringify({ error: errorMessage }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }

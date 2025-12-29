@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/hooks/use-toast";
 import { VisionResult, HunterResult } from "@/types/gse";
 import { formatPrice } from "@/utils/format-price";
 import { useExchangeRate } from "@/hooks/use-exchange-rate";
@@ -32,6 +33,7 @@ export default function VisionResultDisplay({
   handleSearch,
   handleRemoveImage,
 }: VisionResultDisplayProps) {
+  const { toast } = useToast();
   const { exchangeRate } = useExchangeRate();
   const { calculate, isLoading: isCalculatingGlobal, error: fiscalError } = useFiscalCalculation();
   const [fiscalResults, setFiscalResults] = React.useState<Record<number, FiscalCalculationResponse>>({});
@@ -72,23 +74,36 @@ export default function VisionResultDisplay({
   };
 
   const handleCalculateFiscal = async (result: HunterResult, index: number) => {
+    console.log('[VisionResultDisplay] handleCalculateFiscal chamado:', { result, index, visionResult });
+    
     if (!visionResult?.ncmSuggestion) {
-      console.warn('NCM não disponível para cálculo fiscal');
+      console.warn('[VisionResultDisplay] NCM não disponível para cálculo fiscal');
+      toast({
+        title: "NCM não disponível",
+        description: "A identificação não retornou código NCM. Não é possível calcular custo total.",
+        variant: "destructive",
+      });
       return;
     }
 
     if (!result?.price || !result?.currency || !result?.marketplace) {
-      console.error('Dados do resultado Hunter incompletos:', result);
+      console.error('[VisionResultDisplay] Dados do resultado Hunter incompletos:', result);
+      toast({
+        title: "Dados incompletos",
+        description: "O resultado da busca não contém informações suficientes para cálculo.",
+        variant: "destructive",
+      });
       return;
     }
 
     setCalculatingIndex(index);
     try {
-      console.log('Calculando custo fiscal para:', { 
+      console.log('[VisionResultDisplay] Calculando custo fiscal para:', { 
         price: result.price, 
         currency: result.currency, 
         ncm: visionResult.ncmSuggestion,
-        originCountry: getOriginCountry(result.marketplace)
+        originCountry: getOriginCountry(result.marketplace),
+        weightKg: estimateWeight()
       });
       
       const fiscalResult = await calculate({
@@ -100,13 +115,27 @@ export default function VisionResultDisplay({
       });
 
       if (fiscalResult) {
-        console.log('Cálculo fiscal concluído:', fiscalResult);
+        console.log('[VisionResultDisplay] Cálculo fiscal concluído:', fiscalResult);
         setFiscalResults((prev) => ({ ...prev, [index]: fiscalResult }));
+        toast({
+          title: "Custo calculado",
+          description: "Custo total garantido calculado com sucesso!",
+        });
       } else {
-        console.warn('Cálculo fiscal retornou null');
+        console.warn('[VisionResultDisplay] Cálculo fiscal retornou null');
+        toast({
+          title: "Erro no cálculo",
+          description: "Não foi possível calcular o custo total. Tente novamente.",
+          variant: "destructive",
+        });
       }
     } catch (error) {
-      console.error('Erro ao calcular custo fiscal:', error);
+      console.error('[VisionResultDisplay] Erro ao calcular custo fiscal:', error);
+      toast({
+        title: "Erro no cálculo",
+        description: error instanceof Error ? error.message : "Erro desconhecido ao calcular custo.",
+        variant: "destructive",
+      });
     } finally {
       setCalculatingIndex(null);
     }
@@ -212,8 +241,15 @@ export default function VisionResultDisplay({
           type="button"
           variant="neon"
           className="flex-1"
-          onClick={handleSearch}
-          disabled={isSearching}
+          onClick={() => {
+            console.log("[VisionResultDisplay] Botão buscar clicado, visionResult:", visionResult);
+            if (handleSearch) {
+              handleSearch();
+            } else {
+              console.error("[VisionResultDisplay] handleSearch não está definido");
+            }
+          }}
+          disabled={isSearching || !visionResult}
           aria-label="Buscar opções no mundo"
         >
           {isSearching ? (
@@ -247,7 +283,7 @@ export default function VisionResultDisplay({
         </div>
       )}
 
-      {hunterResults.length > 0 && (
+      {hunterResults && hunterResults.length > 0 && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -263,7 +299,13 @@ export default function VisionResultDisplay({
             </Badge>
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            {hunterResults.map((result, index) => (
+            {hunterResults.map((result, index) => {
+              if (!result) {
+                console.warn(`[VisionResultDisplay] Resultado ${index} é null/undefined`);
+                return null;
+              }
+              
+              return (
               <motion.div
                 key={index}
                 initial={{ opacity: 0, scale: 0.95 }}
@@ -374,15 +416,30 @@ export default function VisionResultDisplay({
                   </div>
                 </Card>
               </motion.div>
-            ))}
+              );
+            })}
           </div>
           
           {/* Exibir breakdowns fiscais */}
           {Object.entries(fiscalResults).map(([indexStr, fiscalResult]) => {
             const index = parseInt(indexStr);
-            if (!fiscalResult || !fiscalResult.breakdown || !fiscalResult.totalGuaranteed) {
+            console.log(`[VisionResultDisplay] Renderizando breakdown fiscal ${index}:`, fiscalResult);
+            
+            if (!fiscalResult) {
+              console.warn(`[VisionResultDisplay] Breakdown ${index} é null/undefined`);
               return null;
             }
+            
+            if (!fiscalResult.breakdown || !Array.isArray(fiscalResult.breakdown) || fiscalResult.breakdown.length === 0) {
+              console.warn(`[VisionResultDisplay] Breakdown ${index} não tem itens válidos:`, fiscalResult.breakdown);
+              return null;
+            }
+            
+            if (!fiscalResult.totalGuaranteed || isNaN(fiscalResult.totalGuaranteed)) {
+              console.warn(`[VisionResultDisplay] Breakdown ${index} tem totalGuaranteed inválido:`, fiscalResult.totalGuaranteed);
+              return null;
+            }
+            
             return (
               <motion.div
                 key={`fiscal-${index}`}
@@ -395,8 +452,12 @@ export default function VisionResultDisplay({
                   totalGuaranteed={fiscalResult.totalGuaranteed}
                   guaranteeNote={fiscalResult.guaranteeNote || 'GSE cobre a diferença se o imposto exceder o cálculo'}
                   onConfirm={() => {
+                    console.log('[VisionResultDisplay] Confirmando pedido para resultado', index);
                     // TODO: Implementar confirmação de pedido
-                    alert('Funcionalidade de confirmação de pedido será implementada em breve.');
+                    toast({
+                      title: "Confirmação de pedido",
+                      description: "Funcionalidade de confirmação de pedido será implementada em breve.",
+                    });
                   }}
                 />
               </motion.div>

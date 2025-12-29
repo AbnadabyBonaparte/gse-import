@@ -8,7 +8,10 @@ interface VisionPayload {
 }
 
 interface HunterPayload {
-  query: string;
+  partName: string;
+  compatibility?: string[];
+  oemCode?: string;
+  userText?: string;
 }
 
 export const useGSEApi = () => {
@@ -69,12 +72,13 @@ export const useGSEApi = () => {
     return callApi<VisionResult, FormData>("/api/vision", formData, true);
   }, [callApi]);
 
-  const searchPart = useCallback(async ({ query }: HunterPayload): Promise<HunterResult[] | null> => {
-    if (!query) {
-      setError("A query de busca está vazia.");
+  const searchPart = useCallback(async (payload: HunterPayload): Promise<HunterResult[] | null> => {
+    if (!payload.partName || payload.partName.trim().length === 0) {
+      setError("Nome da peça é obrigatório para busca.");
       return null;
     }
-    const data = await callApi<{ results: HunterResult[] }, { query: string }>("/api/hunter/search", { query });
+    console.log("[useGSEApi] Enviando busca Hunter:", payload);
+    const data = await callApi<{ results: HunterResult[] }, HunterPayload>("/api/hunter/search", payload);
     return data ? data.results : null;
   }, [callApi]);
 
