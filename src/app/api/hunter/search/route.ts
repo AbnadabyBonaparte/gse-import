@@ -31,7 +31,14 @@ interface SerperShoppingResult {
 
 export async function POST(request: NextRequest) {
   try {
+    if (process.env.NODE_ENV === "development") {
+      console.log("[Hunter] Recebida requisição de busca");
+    }
+
     if (!process.env.SERPER_API_KEY) {
+      if (process.env.NODE_ENV === "development") {
+        console.error("[Hunter] SERPER_API_KEY não configurada");
+      }
       return NextResponse.json(
         { error: "SERPER_API_KEY não configurada" },
         { status: 500 }
@@ -39,6 +46,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body: HunterSearchRequest = await request.json();
+
+    if (process.env.NODE_ENV === "development") {
+      console.log("[Hunter] Buscando:", body.partName);
+    }
 
     if (!body.partName || body.partName.trim().length === 0) {
       return NextResponse.json(
@@ -72,6 +83,10 @@ export async function POST(request: NextRequest) {
 
     const fullQuery = `${searchQuery} (${siteQuery})`;
 
+    if (process.env.NODE_ENV === "development") {
+      console.log("[Hunter] Query:", fullQuery);
+    }
+
     const serperResponse = await fetch("https://google.serper.dev/shopping", {
       method: "POST",
       headers: {
@@ -86,7 +101,7 @@ export async function POST(request: NextRequest) {
 
     if (!serperResponse.ok) {
       const errorText = await serperResponse.text();
-      console.error("Erro Serper.dev:", errorText);
+      console.error("[Hunter] Erro Serper.dev:", serperResponse.status, errorText);
       return NextResponse.json(
         { error: "Erro ao buscar peças. Tente novamente." },
         { status: serperResponse.status }
@@ -96,6 +111,10 @@ export async function POST(request: NextRequest) {
     const serperData = await serperResponse.json();
     const shoppingResults: SerperShoppingResult[] =
       serperData.shopping || serperData.organic || [];
+
+    if (process.env.NODE_ENV === "development") {
+      console.log("[Hunter] Resultados encontrados:", shoppingResults.length);
+    }
 
     const results: SearchResult[] = shoppingResults
       .slice(0, 5)
@@ -125,13 +144,20 @@ export async function POST(request: NextRequest) {
       .sort((a, b) => a.price - b.price);
 
     if (results.length === 0) {
+      if (process.env.NODE_ENV === "development") {
+        console.log("[Hunter] Nenhum resultado válido encontrado");
+      }
       return NextResponse.json(
-        { error: "Nenhuma peça encontrada nos marketplaces confiáveis" },
-        { status: 404 }
+        { results: [], error: "Nenhuma peça encontrada nos marketplaces confiáveis" },
+        { status: 200 }
       );
     }
 
-    return NextResponse.json({ results });
+    if (process.env.NODE_ENV === "development") {
+      console.log("[Hunter] Retornando", results.length, "resultados");
+    }
+
+    return NextResponse.json({ results }, { status: 200 });
   } catch (error: unknown) {
     console.error("Erro na API Hunter:", error);
 

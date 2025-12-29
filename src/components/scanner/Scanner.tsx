@@ -211,9 +211,12 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+        const errorData = await response.json().catch(() => ({
+          error: `Erro ${response.status}: ${response.statusText}`,
+        }));
+        console.error("[Scanner] Erro na busca:", response.status, errorData);
         throw new Error(
-          errorData.error || "Erro ao buscar peças. Tente novamente."
+          errorData.error || `Erro ${response.status} ao buscar peças. Tente novamente.`
         );
       }
 
@@ -223,6 +226,7 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
         toast({
           title: "Nenhuma peça encontrada",
           description:
+            data.error ||
             "Não encontramos opções nos marketplaces confiáveis. Tente novamente mais tarde.",
           variant: "default",
         });
