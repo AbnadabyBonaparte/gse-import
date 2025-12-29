@@ -32,7 +32,7 @@ Resolver a angústia da "peça impossível" com **autonomia total**:
 | Visão & Documentação   | 100%        |
 | Matriz Gênesis         | 100% (ativa)|
 | Governança Técnica     | 100%        |
-| Código Funcional       | 25% (base frontend rodando localmente) |
+| Código Funcional       | 60% (identificação real por foto funcional) |
 
 **A máquina tem alma. Agora ganha corpo.**
 
@@ -49,6 +49,36 @@ Resolver a angústia da "peça impossível" com **autonomia total**:
 - [governance/MATRIZ_GENESE_GSE.md](governance/MATRIZ_GENESE_GSE.md) — 6 Leis Sagradas
 - [governance/CLAUDE.md](governance/CLAUDE.md) — Checklist obrigatório
 - [governance/AI_ABSTRACTION.md](governance/AI_ABSTRACTION.md) — Abstração de IA
+
+---
+## 🚀 Quick Start
+
+### 1. Instalar Dependências
+```bash
+npm install
+```
+
+### 2. Configurar Variáveis de Ambiente
+```bash
+# Copiar template
+cp .env.local.example .env.local
+
+# Editar .env.local e adicionar sua OPENAI_API_KEY
+# Obtenha em: https://platform.openai.com/api-keys
+```
+
+### 3. Executar em Desenvolvimento
+```bash
+npm run dev
+```
+
+Acesse: http://localhost:3000
+
+### 4. Testar Scanner de Peças
+1. Clique em "Tirar foto da peça →"
+2. Faça upload de uma imagem de peça automotiva
+3. Clique em "Identificar peça"
+4. Aguarde a identificação por GPT-4o Vision
 
 ---
 **Exército de um homem só, multiplicado por IA.**  

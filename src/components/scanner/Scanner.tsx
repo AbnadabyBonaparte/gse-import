@@ -10,6 +10,7 @@ import {
   Loader2,
   CheckCircle2,
   ScanLine,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -29,9 +30,19 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 type ScannerState = "empty" | "loaded" | "processing" | "success" | "error";
+
+interface VisionResult {
+  description: string;
+  partName: string;
+  compatibility: string[];
+  confidence: number;
+  ncmSuggestion: string;
+  oemCode?: string;
+}
 
 interface ScannerProps {
   open: boolean;
@@ -42,12 +53,19 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
   const [state, setState] = useState<ScannerState>("empty");
+  const [visionResult, setVisionResult] = useState<VisionResult | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
   const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
 
   const handleFileSelect = useCallback((file: File) => {
     if (!file.type.startsWith("image/")) {
+      toast({
+        title: "Arquivo inválido",
+        description: "Por favor, selecione uma imagem.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -56,9 +74,10 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
     reader.onloadend = () => {
       setImagePreview(reader.result as string);
       setState("loaded");
+      setVisionResult(null);
     };
     reader.readAsDataURL(file);
-  }, []);
+  }, [toast]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -90,6 +109,7 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
     setImageFile(null);
     setImagePreview("");
     setState("empty");
+    setVisionResult(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -99,10 +119,56 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
     if (!imageFile) return;
 
     setState("processing");
+    setVisionResult(null);
 
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+    try {
+      const formData = new FormData();
+      formData.append("image", imageFile);
 
-    setState("success");
+      const response = await fetch("/api/vision", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.error || "Erro ao identificar peça. Tente novamente."
+        );
+      }
+
+      const data: VisionResult = await response.json();
+
+      if (!data.partName || !data.description) {
+        throw new Error("Resposta incompleta da API");
+      }
+
+      setVisionResult(data);
+      setState("success");
+    } catch (error) {
+      console.error("Erro na identificação:", error);
+      setState("error");
+      toast({
+        title: "Erro na identificação",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Não foi possível identificar a peça. Tente novamente.",
+        variant: "destructive",
+        action: (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setState("loaded");
+              handleIdentify();
+            }}
+          >
+            Tentar novamente
+          </Button>
+        ),
+      });
+    }
   };
 
   const handleClose = () => {
@@ -114,7 +180,7 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
   };
 
   const Content = (
-    <div className="space-y-6">
+    <div className="space-y-6" aria-live="polite" aria-atomic="true">
       <div className="space-y-2">
         <h2 className="text-2xl font-semibold text-foreground">
           Identificar Peça
@@ -275,7 +341,7 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
           </motion.div>
         )}
 
-        {state === "success" && (
+        {state === "success" && visionResult && (
           <motion.div
             key="success"
             initial={{ opacity: 0, scale: 0.95 }}
@@ -283,19 +349,80 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
             exit={{ opacity: 0, scale: 0.95 }}
             className="space-y-4"
           >
-            <Card className="border-primary/20 bg-card/50 p-6">
-              <div className="flex items-start gap-4">
-                <div className="rounded-full bg-primary/10 p-2">
-                  <CheckCircle2 className="h-6 w-6 text-primary" />
+            <Card className="border-primary/20 bg-card p-6">
+              <div className="space-y-4">
+                <div className="flex items-start gap-4">
+                  <div className="rounded-full bg-primary/10 p-2">
+                    <CheckCircle2 className="h-6 w-6 text-primary" />
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    <h3 className="text-lg font-semibold text-foreground">
+                      {visionResult.partName}
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      {visionResult.description}
+                    </p>
+                  </div>
                 </div>
-                <div className="flex-1 space-y-2">
-                  <h3 className="text-lg font-semibold text-foreground">
-                    Peça identificada
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    Motor 2.0 TSI EA888 Gen3 identificado com 98% de confiança
-                  </p>
+
+                {visionResult.compatibility.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-foreground">
+                      Compatível com:
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {visionResult.compatibility.map((model, index) => (
+                        <span
+                          key={index}
+                          className="rounded-md border border-border bg-card px-3 py-1 text-xs text-foreground"
+                        >
+                          {model}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {visionResult.oemCode && (
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-foreground">
+                      Código OEM:
+                    </p>
+                    <p className="text-sm text-muted-foreground font-mono">
+                      {visionResult.oemCode}
+                    </p>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium text-foreground">
+                      Confiança da identificação
+                    </span>
+                    <span className="text-muted-foreground">
+                      {visionResult.confidence}%
+                    </span>
+                  </div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
+                    <motion.div
+                      className="h-full bg-primary"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${visionResult.confidence}%` }}
+                      transition={{ duration: 0.8, ease: "easeOut" }}
+                    />
+                  </div>
                 </div>
+
+                {visionResult.ncmSuggestion && (
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-foreground">
+                      Sugestão NCM:
+                    </p>
+                    <p className="text-sm text-muted-foreground font-mono">
+                      {visionResult.ncmSuggestion}
+                    </p>
+                  </div>
+                )}
               </div>
             </Card>
 
@@ -322,8 +449,66 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
                 className="flex-1"
                 disabled
                 aria-label="Buscar opções no mundo (em desenvolvimento)"
+                title="Em breve"
               >
                 Buscar opções no mundo
+              </Button>
+            </div>
+          </motion.div>
+        )}
+
+        {state === "error" && (
+          <motion.div
+            key="error"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="space-y-4"
+          >
+            <Card className="border-destructive/20 bg-card p-6">
+              <div className="flex items-start gap-4">
+                <div className="rounded-full bg-destructive/10 p-2">
+                  <AlertCircle className="h-6 w-6 text-destructive" />
+                </div>
+                <div className="flex-1 space-y-2">
+                  <h3 className="text-lg font-semibold text-foreground">
+                    Erro na identificação
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    Não foi possível identificar a peça. Tente novamente com
+                    outra foto.
+                  </p>
+                </div>
+              </div>
+            </Card>
+
+            <div className="relative aspect-square w-full overflow-hidden rounded-lg border border-border bg-card">
+              <img
+                src={imagePreview}
+                alt="Erro na identificação"
+                className="h-full w-full object-cover opacity-50"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1"
+                onClick={handleRemoveImage}
+              >
+                Nova foto
+              </Button>
+              <Button
+                type="button"
+                variant="default"
+                className="flex-1"
+                onClick={() => {
+                  setState("loaded");
+                  handleIdentify();
+                }}
+              >
+                Tentar novamente
               </Button>
             </div>
           </motion.div>
@@ -362,4 +547,3 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
     </Dialog>
   );
 }
-
