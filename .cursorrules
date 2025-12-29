@@ -1,0 +1,307 @@
+# GSE Import - Regras de Governança ALSHAM-360-PRIMA
+
+## 🚨 REGRAS CRÍTICAS - ZERO TOLERÂNCIA
+
+### 1. ZERO HARDCODED - Dados e Configurações
+
+**NUNCA hardcode:**
+- ❌ Valores de impostos (II, IPI, PIS/COFINS, ICMS)
+- ❌ Códigos NCM
+- ❌ URLs de marketplaces (eBay, RockAuto, Taobao, etc.)
+- ❌ Taxas de câmbio
+- ❌ Margens de lucro
+- ❌ Prazos de entrega
+- ❌ Limites de valores
+- ❌ Status colors (usar CSS variables)
+
+**SEMPRE usar:**
+- ✅ Variáveis de ambiente (`.env`)
+- ✅ Configurações no Supabase (tabela `settings` ou `config`)
+- ✅ CSS variables para cores (Design System)
+- ✅ Constantes em arquivos de config (`src/lib/config/`)
+- ✅ Queries ao banco para dados dinâmicos
+
+**Exemplo ERRADO:**
+```typescript
+const taxRate = 0.20; // ❌ HARDCODED
+const ncm = "8708.99.90"; // ❌ HARDCODED
+const ebayUrl = "https://ebay.com"; // ❌ HARDCODED
+```
+
+**Exemplo CORRETO:**
+```typescript
+const taxRate = await getTaxRate(ncmCode); // ✅ Do banco
+const ncm = await classifyNCM(partName); // ✅ IA ou banco
+const marketplaceUrl = config.marketplaces.ebay.url; // ✅ Config
+```
+
+### 2. ZERO MOCK DATA - Dados Reais Apenas
+
+**NUNCA usar:**
+- ❌ `mockData`, `fakeData`, `dummyData`, `sampleData`
+- ❌ `TODO`, `FIXME`, `HACK`, `XXX`
+- ❌ Placeholders como `"test"`, `"example"`, `"placeholder"`
+- ❌ Dados estáticos em componentes (exceto exemplos em docs)
+
+**SEMPRE usar:**
+- ✅ Queries reais ao Supabase
+- ✅ Dados de APIs reais (Serper, OpenAI, etc.)
+- ✅ Testes com dados reais (ambiente de staging)
+- ✅ Se precisar de dados de exemplo, usar seed scripts com dados realistas
+
+**Validação pré-commit:**
+```bash
+# Verificar palavras proibidas
+grep -r "mock\|fake\|dummy\|TODO\|FIXME\|HACK" src/ --exclude-dir=node_modules
+# Deve retornar zero resultados
+```
+
+### 3. Supabase - Filtro org_id Obrigatório
+
+**TODAS as queries devem incluir filtro de organização:**
+```typescript
+// ❌ ERRADO - Sem filtro org_id
+const orders = await supabase
+  .from('orders')
+  .select('*');
+
+// ✅ CORRETO - Com filtro org_id
+const orders = await supabase
+  .from('orders')
+  .select('*')
+  .eq('org_id', currentOrgId); // OBRIGATÓRIO
+```
+
+**RLS (Row Level Security) deve estar ativo:**
+- Todas as tabelas devem ter RLS habilitado
+- Policies devem verificar `org_id` ou `user_id`
+- Nunca desabilitar RLS em produção
+
+### 4. Arquitetura de Agentes - Squad Pattern
+
+**Agentes seguem arquitetura de squad:**
+
+**CORE Squad (Operacional):**
+- `Concierge` - Identificação e comunicação com cliente
+- `Hunter` - Busca global de peças
+- `Fiscal` - Cálculo de impostos e classificação NCM
+- `Auditor` - Validação de fotos e qualidade
+
+**GUARD Squad (Segurança):**
+- `Guard` - Antifraude, validação de pagamentos, análise de risco
+- `Escrow` - Gestão de Smart Escrow (pagamento em garantia)
+
+**ANALYST Squad (Inteligência):**
+- `Analyst` - Análise de margem, otimização de rotas, previsões
+
+**Estrutura de pastas:**
+```
+src/agents/
+├── core/
+│   ├── concierge/
+│   ├── hunter/
+│   ├── fiscal/
+│   └── auditor/
+├── guard/
+│   ├── antifraud/
+│   └── escrow/
+└── analyst/
+    ├── margin/
+    └── optimization/
+```
+
+### 5. Design System - Borderless Premium Gearhead
+
+**Cores - CSS Variables OBRIGATÓRIO:**
+```css
+/* ❌ ERRADO - Hardcoded */
+.button { background: #00FF88; }
+
+/* ✅ CORRETO - CSS Variable */
+.button { background: var(--color-primary); }
+```
+
+**Variáveis definidas em `src/styles/design-system.css`:**
+```css
+:root {
+  /* Primary - Neon Green Gearhead */
+  --color-primary: #00FF88;
+  --color-primary-dark: #00CC70;
+  --color-primary-light: #1AFF8D;
+  
+  /* Background - Dark Mode First */
+  --color-bg-base: #0A0A0A;
+  --color-bg-elevated: #111111;
+  --color-bg-card: #1A1A1A;
+  
+  /* Status Colors */
+  --color-success: var(--color-primary);
+  --color-warning: #FFB800;
+  --color-error: #FF4444;
+  --color-info: #0A84FF;
+  
+  /* Borders */
+  --color-border: #2A2A2C;
+  --color-border-light: #3A3A3C;
+}
+```
+
+**Componentes - shadcn/ui OBRIGATÓRIO:**
+- ✅ Usar componentes do shadcn/ui
+- ✅ Customizar via CSS variables
+- ✅ Nunca criar componentes do zero (usar shadcn como base)
+- ✅ Dark mode first (todos os componentes devem funcionar em dark)
+
+**Tailwind Config:**
+```typescript
+// tailwind.config.ts
+export default {
+  theme: {
+    extend: {
+      colors: {
+        primary: {
+          DEFAULT: 'var(--color-primary)',
+          dark: 'var(--color-primary-dark)',
+          light: 'var(--color-primary-light)',
+        },
+        // ... outras cores via CSS variables
+      },
+    },
+  },
+}
+```
+
+### 6. Stack Tecnológica - Definida e Imutável
+
+**Frontend:**
+- Next.js 15 (App Router)
+- TypeScript (strict mode)
+- Tailwind CSS
+- shadcn/ui
+- React Hook Form + Zod
+
+**Backend:**
+- Supabase (PostgreSQL + Auth + Storage + Realtime)
+- Drizzle ORM (type-safe queries)
+- n8n (orquestração de workflows)
+
+**IA:**
+- Abstração provider-agnostic (ver `governance/AI_ABSTRACTION.md`)
+- Suporte: OpenAI, Anthropic, Google, Grok
+
+**Validação pré-commit:**
+```bash
+# Verificar imports não permitidos
+grep -r "from 'react-query'" src/ # ❌ Usar TanStack Query
+grep -r "styled-components" src/ # ❌ Usar Tailwind + shadcn
+```
+
+### 7. Status Colors - Variáveis CSS
+
+**NUNCA hardcode status colors:**
+```typescript
+// ❌ ERRADO
+const statusColor = order.status === 'paid' ? '#00FF88' : '#FF4444';
+
+// ✅ CORRETO
+const statusColor = `var(--color-${order.status})`; // success, error, etc.
+```
+
+**Mapeamento de status:**
+- `pending` → `--color-warning`
+- `paid` → `--color-success`
+- `shipped` → `--color-info`
+- `delivered` → `--color-success`
+- `cancelled` → `--color-error`
+
+### 8. Validação Pré-Commit
+
+**Scripts obrigatórios em `.husky/pre-commit`:**
+```bash
+#!/bin/sh
+
+# 1. Verificar palavras proibidas
+echo "🔍 Verificando palavras proibidas..."
+if grep -r "mock\|fake\|dummy\|TODO\|FIXME\|HACK" src/ --exclude-dir=node_modules; then
+  echo "❌ Palavras proibidas encontradas!"
+  exit 1
+fi
+
+# 2. Verificar hardcoded colors
+echo "🎨 Verificando hardcoded colors..."
+if grep -r "#[0-9A-Fa-f]\{6\}" src/ --exclude-dir=node_modules | grep -v "var(--"; then
+  echo "❌ Cores hardcoded encontradas! Use CSS variables."
+  exit 1
+fi
+
+# 3. Verificar queries sem org_id
+echo "🔐 Verificando queries Supabase..."
+# (adicionar validação específica)
+
+# 4. TypeScript check
+echo "📘 Verificando TypeScript..."
+npm run type-check
+
+# 5. Lint
+echo "🧹 Executando linter..."
+npm run lint
+```
+
+### 9. Estrutura de Pastas - SSOT (Single Source of Truth)
+
+**Organização obrigatória:**
+```
+src/
+├── app/                    # Next.js App Router
+├── components/
+│   ├── ui/                 # shadcn/ui components
+│   ├── core/               # Componentes core do GSE
+│   └── layout/             # Layout components
+├── lib/
+│   ├── ai/                 # Abstração de IA (provider-agnostic)
+│   ├── supabase/            # Cliente Supabase + queries
+│   ├── config/              # Configurações (não hardcoded)
+│   └── utils/               # Utilitários
+├── agents/                  # Agentes (squad pattern)
+├── hooks/                   # React hooks customizados
+└── types/                   # TypeScript types (shared)
+```
+
+**SSOT para:**
+- Configurações → `src/lib/config/`
+- Tipos compartilhados → `src/types/`
+- Constantes → `src/lib/constants.ts` (apenas se não vierem do banco)
+- Design tokens → `src/styles/design-system.css`
+
+### 10. Testes - Zero Mock Policy
+
+**Testes devem usar:**
+- ✅ Dados reais do Supabase (ambiente de staging)
+- ✅ Mocks apenas de APIs externas (Serper, Stripe, etc.)
+- ✅ Testes de integração com dados reais
+
+**NUNCA:**
+- ❌ Mock de dados do Supabase
+- ❌ Dados fake em testes de integração
+- ❌ Placeholders em testes
+
+## 📋 Checklist Obrigatório Antes de Commit
+
+- [ ] Zero hardcoded (impostos, NCM, URLs, cores)
+- [ ] Zero mock data (apenas dados reais)
+- [ ] Queries Supabase com filtro org_id
+- [ ] Cores via CSS variables
+- [ ] Componentes shadcn/ui (não criar do zero)
+- [ ] TypeScript strict mode (sem `any`)
+- [ ] Validação pré-commit passou
+- [ ] Testes com dados reais
+
+## 🚨 Violações = Rejeição Imediata
+
+Qualquer violação destas regras resulta em:
+1. Rejeição do PR
+2. Correção obrigatória
+3. Revisão da governança se necessário
+
+**Estas regras são INVOLÁVEIS. Não há exceções.**
+

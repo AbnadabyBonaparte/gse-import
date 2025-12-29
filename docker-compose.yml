@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    ports:
+      - "5678:5678"
+    environment:
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=db
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=n8n
+      - DB_POSTGRESDB_USER=n8n
+      - DB_POSTGRESDB_PASSWORD=n8n_pass
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=leonidas
+      - N8N_BASIC_AUTH_PASSWORD=gse2026
+      - N8N_HOST=localhost
+      - N8N_PROTOCOL=http
+      - EXECUTIONS_MODE=queue
+    volumes:
+      - C:\Users\abnad/.n8n:/home/node/.n8n
+      - ./infrastructure/n8n/workflows:/data/workflows
+    depends_on:
+      - db
+    restart: always
+
+  db:
+    image: postgres:15
+    environment:
+      - POSTGRES_USER=n8n
+      - POSTGRES_PASSWORD=n8n_pass
+      - POSTGRES_DB=n8n
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+
+volumes:
+  postgres_data:

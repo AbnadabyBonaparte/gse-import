@@ -1,0 +1,198 @@
+{
+  "name": "GSE Concierge MVP - Identificação de Peças",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "concierge-identify",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook - Recebe Foto",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [250, 300],
+      "webhookId": "concierge-identify"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "extract-image-url",
+              "name": "imageUrl",
+              "value": "={{ $json.body.imageUrl || $json.body.image_url || $json.body.url }}",
+              "type": "string"
+            },
+            {
+              "id": "extract-vin",
+              "name": "vin",
+              "value": "={{ $json.body.vin || $json.body.VIN || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "extract-car-model",
+              "name": "carModel",
+              "value": "={{ $json.body.carModel || $json.body.car_model || $json.body.modelo || '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "extract-data",
+      "name": "Extrair Dados da Requisição",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o",
+        "options": {
+          "maxTokens": 500,
+          "temperature": 0.3,
+          "vision": true
+        },
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "=Você é o Concierge do GSE Import, especialista em peças automotivas para carros brasileiros e importados.\n\nSua função é identificar peças automotivas com precisão e se comunicar de forma amigável e técnica.\n\nSempre responda em português brasileiro, de forma clara e profissional."
+            },
+            {
+              "role": "user",
+              "content": "={{ 'Analise a foto da peça enviada.\n\n' + \n  (($json.vin) ? 'VIN do veículo: ' + $json.vin + '\\n' : '') + \n  (($json.carModel) ? 'Modelo do carro: ' + $json.carModel + '\\n' : '') + \n  '\\nResponda de forma amigável e técnica:\\n' +\n  '- Identifique a peça exata (nome completo, código OEM se possível, modelos/anos compatíveis)\\n' +\n  '- Pergunte confirmação: \"É essa peça para o seu [modelo do carro]?\"\\n' +\n  '- Se não reconhecer com certeza: \"Não identifiquei com 100% de certeza. Pode mandar mais fotos ou informar o modelo do carro?\"\\n' +\n  '- Sempre termine com: \"Posso fazer um orçamento completo com frete e impostos garantidos?\"' }}"
+            }
+          ]
+        },
+        "vision": {
+          "imageInputs": [
+            {
+              "imageInput": "={{ $json.imageUrl }}"
+            }
+          ]
+        }
+      },
+      "id": "openai-vision",
+      "name": "GPT-4o Vision - Identificar Peça",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1.3,
+      "position": [650, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-credentials",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "format-response",
+              "name": "identification",
+              "value": "={{ $json.choices[0].message.content }}",
+              "type": "string"
+            },
+            {
+              "id": "add-metadata",
+              "name": "timestamp",
+              "value": "={{ $now }}",
+              "type": "string"
+            },
+            {
+              "id": "add-input-data",
+              "name": "inputData",
+              "value": "={{ { \"imageUrl\": $('Extrair Dados da Requisição').item.json.imageUrl, \"vin\": $('Extrair Dados da Requisição').item.json.vin, \"carModel\": $('Extrair Dados da Requisição').item.json.carModel } }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "format-response",
+      "name": "Formatar Resposta",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"identification\": $json.identification, \"timestamp\": $json.timestamp, \"inputData\": $json.inputData } }}",
+        "options": {}
+      },
+      "id": "webhook-response",
+      "name": "Resposta Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1050, 300]
+    }
+  ],
+  "connections": {
+    "Webhook - Recebe Foto": {
+      "main": [
+        [
+          {
+            "node": "Extrair Dados da Requisição",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair Dados da Requisição": {
+      "main": [
+        [
+          {
+            "node": "GPT-4o Vision - Identificar Peça",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GPT-4o Vision - Identificar Peça": {
+      "main": [
+        [
+          {
+            "node": "Formatar Resposta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar Resposta": {
+      "main": [
+        [
+          {
+            "node": "Resposta Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2025-01-27T00:00:00.000Z",
+      "updatedAt": "2025-01-27T00:00:00.000Z",
+      "id": "gse-concierge",
+      "name": "GSE Concierge"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2025-01-27T00:00:00.000Z",
+  "versionId": "1"
+}
+
