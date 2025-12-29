@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { extractCarInfo, checkCompatibility } from "@/lib/hunter/translations";
 
 interface HunterSearchRequest {
   partName: string;
   compatibility?: string[];
   oemCode?: string;
+  userText?: string;
 }
 
 interface SearchResult {
@@ -16,6 +18,7 @@ interface SearchResult {
   imageUrl?: string;
   shippingEstimate?: string;
   rating?: number;
+  compatibility?: "confirmed" | "possible" | "unknown";
 }
 
 interface SerperShoppingResult {
@@ -58,6 +61,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const carInfo = body.userText
+      ? extractCarInfo(body.userText)
+      : body.compatibility && body.compatibility.length > 0
+      ? extractCarInfo(body.compatibility[0])
+      : {};
+
     const queryParts = [body.partName];
     if (body.compatibility && body.compatibility.length > 0) {
       queryParts.push(body.compatibility[0]);
@@ -77,47 +86,82 @@ export async function POST(request: NextRequest) {
       "oreillyauto.com",
     ];
 
+    const forumSites = [
+      "site:reddit.com",
+      "site:forum*",
+      "site:stackoverflow.com",
+      "site:quora.com",
+    ];
+
     const siteQuery = trustedMarketplaces
       .map((site) => `site:${site}`)
       .join(" OR ");
 
-    const fullQuery = `${searchQuery} (${siteQuery})`;
+    const forumQuery = forumSites.join(" OR ");
+
+    const marketplaceQuery = `${searchQuery} (${siteQuery})`;
+    const forumSearchQuery = `${searchQuery} (${forumQuery})`;
 
     if (process.env.NODE_ENV === "development") {
-      console.log("[Hunter] Query:", fullQuery);
+      console.log("[Hunter] Query marketplaces:", marketplaceQuery);
+      console.log("[Hunter] Query fóruns:", forumSearchQuery);
     }
 
-    const serperResponse = await fetch("https://google.serper.dev/shopping", {
-      method: "POST",
-      headers: {
-        "X-API-KEY": process.env.SERPER_API_KEY,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        q: fullQuery,
-        num: 10,
+    const [marketplaceResponse, forumResponse] = await Promise.all([
+      fetch("https://google.serper.dev/shopping", {
+        method: "POST",
+        headers: {
+          "X-API-KEY": process.env.SERPER_API_KEY,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          q: marketplaceQuery,
+          num: 10,
+        }),
       }),
-    });
+      fetch("https://google.serper.dev/search", {
+        method: "POST",
+        headers: {
+          "X-API-KEY": process.env.SERPER_API_KEY,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          q: forumSearchQuery,
+          num: 5,
+        }),
+      }),
+    ]);
 
-    if (!serperResponse.ok) {
-      const errorText = await serperResponse.text();
-      console.error("[Hunter] Erro Serper.dev:", serperResponse.status, errorText);
+    if (!marketplaceResponse.ok) {
+      const errorText = await marketplaceResponse.text();
+      console.error("[Hunter] Erro Serper.dev:", marketplaceResponse.status, errorText);
       return NextResponse.json(
         { error: "Erro ao buscar peças. Tente novamente." },
-        { status: serperResponse.status }
+        { status: marketplaceResponse.status }
       );
     }
 
-    const serperData = await serperResponse.json();
+    const marketplaceData = await marketplaceResponse.json();
     const shoppingResults: SerperShoppingResult[] =
-      serperData.shopping || serperData.organic || [];
+      marketplaceData.shopping || marketplaceData.organic || [];
+
+    let forumResults: SerperShoppingResult[] = [];
+    if (forumResponse.ok) {
+      const forumData = await forumResponse.json();
+      forumResults = (forumData.organic || []).slice(0, 3).map((item: any) => ({
+        title: item.title || "",
+        link: item.link || "",
+        source: item.source || "",
+        thumbnail: item.thumbnail,
+      }));
+    }
 
     if (process.env.NODE_ENV === "development") {
       console.log("[Hunter] Resultados encontrados:", shoppingResults.length);
     }
 
     const results: SearchResult[] = shoppingResults
-      .slice(0, 5)
+      .slice(0, 8)
       .map((item) => {
         const priceMatch = item.price?.match(/[\d,]+\.?\d*/);
         const price = priceMatch
@@ -129,6 +173,14 @@ export async function POST(request: NextRequest) {
         const marketplace = extractMarketplace(item.link);
         const seller = extractSeller(item.source, item.link);
 
+        const compatibility = checkCompatibility(
+          item.title || "",
+          item.link,
+          carInfo.brand,
+          carInfo.model,
+          carInfo.year
+        );
+
         return {
           title: item.title || "Sem título",
           url: item.link,
@@ -138,10 +190,18 @@ export async function POST(request: NextRequest) {
           marketplace,
           imageUrl: item.thumbnail,
           rating: item.rating,
+          compatibility,
         };
       })
       .filter((item) => item.price > 0)
-      .sort((a, b) => a.price - b.price);
+      .sort((a, b) => {
+        if (a.compatibility === "confirmed" && b.compatibility !== "confirmed") return -1;
+        if (b.compatibility === "confirmed" && a.compatibility !== "confirmed") return 1;
+        if (a.compatibility === "possible" && b.compatibility === "unknown") return -1;
+        if (b.compatibility === "possible" && a.compatibility === "unknown") return 1;
+        return a.price - b.price;
+      })
+      .slice(0, 5);
 
     if (results.length === 0) {
       if (process.env.NODE_ENV === "development") {

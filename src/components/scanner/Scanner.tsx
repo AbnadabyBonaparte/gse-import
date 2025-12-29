@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
@@ -59,6 +60,7 @@ interface HunterResult {
   imageUrl?: string;
   shippingEstimate?: string;
   rating?: number;
+  compatibility?: "confirmed" | "possible" | "unknown";
 }
 
 interface ScannerProps {
@@ -69,6 +71,7 @@ interface ScannerProps {
 export default function Scanner({ open, onOpenChange }: ScannerProps) {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
+  const [textInput, setTextInput] = useState<string>("");
   const [state, setState] = useState<ScannerState>("empty");
   const [visionResult, setVisionResult] = useState<VisionResult | null>(null);
   const [hunterResults, setHunterResults] = useState<HunterResult[]>([]);
@@ -92,7 +95,9 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
     const reader = new FileReader();
     reader.onloadend = () => {
       setImagePreview(reader.result as string);
-      setState("loaded");
+      if (state === "empty") {
+        setState("loaded");
+      }
       setVisionResult(null);
     };
     reader.readAsDataURL(file);
@@ -127,7 +132,9 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
   const handleRemoveImage = () => {
     setImageFile(null);
     setImagePreview("");
-    setState("empty");
+    if (!textInput.trim()) {
+      setState("empty");
+    }
     setVisionResult(null);
     setHunterResults([]);
     if (fileInputRef.current) {
@@ -135,15 +142,31 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
     }
   };
 
+  const handleTextChange = (value: string) => {
+    setTextInput(value);
+    if (value.trim().length > 0 && state === "empty") {
+      setState("loaded");
+    } else if (value.trim().length === 0 && !imageFile) {
+      setState("empty");
+    }
+  };
+
+  const canIdentify = imageFile || (textInput.trim().length > 0);
+
   const handleIdentify = async () => {
-    if (!imageFile) return;
+    if (!canIdentify) return;
 
     setState("processing");
     setVisionResult(null);
 
     try {
       const formData = new FormData();
-      formData.append("image", imageFile);
+      if (imageFile) {
+        formData.append("image", imageFile);
+      }
+      if (textInput.trim().length > 0) {
+        formData.append("text", textInput.trim());
+      }
 
       const response = await fetch("/api/vision", {
         method: "POST",
@@ -207,6 +230,7 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
           partName: visionResult.partName,
           compatibility: visionResult.compatibility,
           oemCode: visionResult.oemCode,
+          userText: textInput.trim() || undefined,
         }),
       });
 
@@ -278,7 +302,7 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
           Identificar Peça
         </h2>
         <p className="text-sm text-muted-foreground">
-          Tire uma foto ou faça upload da imagem da peça automotiva
+          Descreva a peça, tire uma foto ou ambos. Quanto mais informações, melhor a identificação.
         </p>
       </div>
 
@@ -291,6 +315,32 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
             exit={{ opacity: 0 }}
             className="space-y-4"
           >
+            <div className="space-y-2">
+              <Label htmlFor="text-input" className="text-sm font-medium text-foreground">
+                Descreva a peça (opcional)
+              </Label>
+              <Textarea
+                id="text-input"
+                placeholder="Ex: Bomba d'água para VW Golf GTI 2015, código OEM 06H121026H, ou VIN: WVWZZZ1KZAW123456"
+                value={textInput}
+                onChange={(e) => handleTextChange(e.target.value)}
+                className="min-h-[120px] resize-none text-base"
+                aria-label="Campo de texto para descrever a peça"
+              />
+              <p className="text-xs text-muted-foreground">
+                Informe marca, modelo, ano, código OEM, VIN ou qualquer referência que você tenha
+              </p>
+            </div>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-border" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">ou</span>
+              </div>
+            </div>
+
             <Label htmlFor="file-upload" className="sr-only">
               Upload de imagem
             </Label>
@@ -354,6 +404,18 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
                 </Button>
               </div>
             </div>
+
+            <Button
+              type="button"
+              variant="neon"
+              size="lg"
+              className="w-full"
+              onClick={handleIdentify}
+              disabled={!canIdentify}
+            >
+              <ScanLine className="mr-2 h-5 w-5" />
+              Identificar peça
+            </Button>
           </motion.div>
         )}
 
@@ -365,29 +427,44 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
             exit={{ opacity: 0, scale: 0.95 }}
             className="space-y-4"
           >
-            <div className="relative aspect-square w-full overflow-hidden rounded-lg border border-border bg-card">
-              <img
-                src={imagePreview}
-                alt="Preview da peça"
-                className="h-full w-full object-cover"
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="absolute right-2 top-2 h-8 w-8 rounded-full bg-background/80 backdrop-blur-sm hover:bg-background"
-                onClick={handleRemoveImage}
-                aria-label="Remover imagem"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
+            {textInput.trim().length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-foreground">
+                  Descrição da peça
+                </Label>
+                <div className="rounded-lg border border-border bg-card/50 p-4">
+                  <p className="text-sm text-foreground">{textInput}</p>
+                </div>
+              </div>
+            )}
+
+            {imagePreview && (
+              <div className="relative aspect-square w-full overflow-hidden rounded-lg border border-border bg-card">
+                <img
+                  src={imagePreview}
+                  alt="Preview da peça"
+                  className="h-full w-full object-cover"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-2 top-2 h-8 w-8 rounded-full bg-background/80 backdrop-blur-sm hover:bg-background"
+                  onClick={handleRemoveImage}
+                  aria-label="Remover imagem"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+
             <Button
               type="button"
               variant="neon"
               size="lg"
               className="w-full"
               onClick={handleIdentify}
+              disabled={!canIdentify}
             >
               <ScanLine className="mr-2 h-5 w-5" />
               Identificar peça
@@ -603,16 +680,23 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
                           index === 0 && "border-primary/30"
                         )}
                       >
-                        {index === 0 && (
-                          <div className="bg-primary/10 border-b border-primary/20 px-4 py-2">
-                            <Badge
-                              variant="default"
-                              className="w-full justify-center"
-                            >
+                        <div className="bg-card/50 border-b border-border/50 px-4 py-2 flex gap-2 flex-wrap">
+                          {index === 0 && (
+                            <Badge variant="default" className="text-xs">
                               Melhor custo-benefício
                             </Badge>
-                          </div>
-                        )}
+                          )}
+                          {result.compatibility === "confirmed" && (
+                            <Badge variant="default" className="bg-green-500/20 text-green-400 border-green-500/30 text-xs">
+                              Compatível confirmado
+                            </Badge>
+                          )}
+                          {result.compatibility === "possible" && (
+                            <Badge variant="outline" className="border-yellow-500/30 text-yellow-400 text-xs">
+                              Pode servir
+                            </Badge>
+                          )}
+                        </div>
                         <div className="relative aspect-square w-full overflow-hidden bg-card">
                           {result.imageUrl ? (
                             <img

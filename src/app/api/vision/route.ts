@@ -25,34 +25,40 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     const file = formData.get("image") as File | null;
+    const textInput = formData.get("text") as string | null;
 
-    if (!file) {
+    if (!file && !textInput) {
       return NextResponse.json(
-        { error: "Nenhuma imagem fornecida" },
+        { error: "Forneça uma imagem ou descrição textual da peça" },
         { status: 400 }
       );
     }
 
-    if (!file.type.startsWith("image/")) {
-      return NextResponse.json(
-        { error: "Arquivo deve ser uma imagem" },
-        { status: 400 }
-      );
-    }
+    let dataUrl: string | null = null;
+    if (file) {
+      if (!file.type.startsWith("image/")) {
+        return NextResponse.json(
+          { error: "Arquivo deve ser uma imagem" },
+          { status: 400 }
+        );
+      }
 
-    const arrayBuffer = await file.arrayBuffer();
-    const base64 = Buffer.from(arrayBuffer).toString("base64");
-    const dataUrl = `data:${file.type};base64,${base64}`;
+      const arrayBuffer = await file.arrayBuffer();
+      const base64 = Buffer.from(arrayBuffer).toString("base64");
+      dataUrl = `data:${file.type};base64,${base64}`;
+    }
 
     const systemPrompt = `Você é um especialista técnico em peças automotivas para o mercado brasileiro. Sua função é identificar peças automotivas com precisão máxima.
 
-Analise a imagem fornecida e identifique:
+${file ? "Analise a imagem fornecida" : "Com base na descrição fornecida"} e identifique:
 1. Nome exato da peça (ex: "Bomba d'água", "Radiador", "Disco de freio")
 2. Modelos de carros compatíveis (marca, modelo, geração, anos)
-3. Código OEM ou número de peça (se visível na imagem)
+3. Código OEM ou número de peça (se mencionado ou visível)
 4. Nível de confiança da identificação (0-100%)
 5. Sugestão de NCM (Nomenclatura Comum do Mercosul) mais provável
 6. Descrição técnica detalhada
+
+${textInput ? `O usuário forneceu esta descrição adicional: "${textInput}". Use essas informações para enriquecer sua análise.` : ""}
 
 Responda APENAS em JSON válido com esta estrutura exata:
 {
@@ -66,7 +72,27 @@ Responda APENAS em JSON válido com esta estrutura exata:
 
 Se não conseguir identificar com certeza (confiança < 70%), indique isso claramente no JSON.`;
 
-    const userPrompt = `Analise esta imagem de peça automotiva e identifique todos os detalhes possíveis.`;
+    const userPrompt = file
+      ? textInput
+        ? `Analise esta imagem de peça automotiva e a descrição fornecida: "${textInput}". Identifique todos os detalhes possíveis combinando ambas as informações.`
+        : `Analise esta imagem de peça automotiva e identifique todos os detalhes possíveis.`
+      : `Com base nesta descrição de peça automotiva: "${textInput}", identifique todos os detalhes possíveis.`;
+
+    const userContent: Array<{ type: string; text?: string; image_url?: { url: string } }> = [
+      {
+        type: "text",
+        text: userPrompt,
+      },
+    ];
+
+    if (dataUrl) {
+      userContent.push({
+        type: "image_url",
+        image_url: {
+          url: dataUrl,
+        },
+      });
+    }
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -77,18 +103,7 @@ Se não conseguir identificar com certeza (confiança < 70%), indique isso clara
         },
         {
           role: "user",
-          content: [
-            {
-              type: "text",
-              text: userPrompt,
-            },
-            {
-              type: "image_url",
-              image_url: {
-                url: dataUrl,
-              },
-            },
-          ],
+          content: userContent as any,
         },
       ],
       temperature: 0.3,
