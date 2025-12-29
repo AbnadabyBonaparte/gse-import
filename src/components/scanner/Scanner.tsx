@@ -11,6 +11,9 @@ import {
   CheckCircle2,
   ScanLine,
   AlertCircle,
+  Search,
+  ExternalLink,
+  Star,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -30,6 +33,8 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -44,6 +49,18 @@ interface VisionResult {
   oemCode?: string;
 }
 
+interface HunterResult {
+  title: string;
+  url: string;
+  price: number;
+  currency: string;
+  seller: string;
+  marketplace: string;
+  imageUrl?: string;
+  shippingEstimate?: string;
+  rating?: number;
+}
+
 interface ScannerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -54,6 +71,8 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
   const [imagePreview, setImagePreview] = useState<string>("");
   const [state, setState] = useState<ScannerState>("empty");
   const [visionResult, setVisionResult] = useState<VisionResult | null>(null);
+  const [hunterResults, setHunterResults] = useState<HunterResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -110,6 +129,7 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
     setImagePreview("");
     setState("empty");
     setVisionResult(null);
+    setHunterResults([]);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -171,8 +191,76 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
     }
   };
 
+  const handleSearch = async () => {
+    if (!visionResult) return;
+
+    setIsSearching(true);
+    setHunterResults([]);
+
+    try {
+      const response = await fetch("/api/hunter/search", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          partName: visionResult.partName,
+          compatibility: visionResult.compatibility,
+          oemCode: visionResult.oemCode,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.error || "Erro ao buscar peças. Tente novamente."
+        );
+      }
+
+      const data = await response.json();
+
+      if (!data.results || data.results.length === 0) {
+        toast({
+          title: "Nenhuma peça encontrada",
+          description:
+            "Não encontramos opções nos marketplaces confiáveis. Tente novamente mais tarde.",
+          variant: "default",
+        });
+        return;
+      }
+
+      setHunterResults(data.results);
+    } catch (error) {
+      console.error("Erro na busca:", error);
+      toast({
+        title: "Erro na busca",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Não foi possível buscar peças. Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const formatPrice = (price: number, currency: string): string => {
+    if (currency === "USD") {
+      return new Intl.NumberFormat("pt-BR", {
+        style: "currency",
+        currency: "BRL",
+        minimumFractionDigits: 2,
+      }).format(price * 5.5);
+    }
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: currency,
+    }).format(price);
+  };
+
   const handleClose = () => {
-    if (state === "processing") return;
+    if (state === "processing" || isSearching) return;
     onOpenChange(false);
     setTimeout(() => {
       handleRemoveImage();
@@ -447,13 +535,142 @@ export default function Scanner({ open, onOpenChange }: ScannerProps) {
                 type="button"
                 variant="neon"
                 className="flex-1"
-                disabled
-                aria-label="Buscar opções no mundo (em desenvolvimento)"
-                title="Em breve"
+                onClick={handleSearch}
+                disabled={isSearching}
+                aria-label="Buscar opções no mundo"
               >
-                Buscar opções no mundo
+                {isSearching ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Buscando...
+                  </>
+                ) : (
+                  <>
+                    <Search className="mr-2 h-4 w-4" />
+                    Buscar opções no mundo
+                  </>
+                )}
               </Button>
             </div>
+
+            {isSearching && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  {[1, 2, 3].map((i) => (
+                    <Card key={i} className="overflow-hidden">
+                      <Skeleton className="h-48 w-full" />
+                      <div className="p-4 space-y-2">
+                        <Skeleton className="h-4 w-full" />
+                        <Skeleton className="h-4 w-3/4" />
+                        <Skeleton className="h-6 w-1/2" />
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {hunterResults.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-4"
+              >
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-foreground">
+                    Opções encontradas
+                  </h3>
+                  <Badge variant="secondary">
+                    {hunterResults.length} resultado
+                    {hunterResults.length > 1 ? "s" : ""}
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  {hunterResults.map((result, index) => (
+                    <motion.div
+                      key={index}
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: index * 0.1 }}
+                    >
+                      <Card
+                        className={cn(
+                          "group overflow-hidden transition-all hover:border-primary/50 hover:shadow-lg",
+                          index === 0 && "border-primary/30"
+                        )}
+                      >
+                        {index === 0 && (
+                          <div className="bg-primary/10 border-b border-primary/20 px-4 py-2">
+                            <Badge
+                              variant="default"
+                              className="w-full justify-center"
+                            >
+                              Melhor custo-benefício
+                            </Badge>
+                          </div>
+                        )}
+                        <div className="relative aspect-square w-full overflow-hidden bg-card">
+                          {result.imageUrl ? (
+                            <img
+                              src={result.imageUrl}
+                              alt={result.title}
+                              className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center bg-muted">
+                              <Search className="h-8 w-8 text-muted-foreground" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="p-4 space-y-3">
+                          <h4 className="line-clamp-2 text-sm font-semibold text-foreground">
+                            {result.title}
+                          </h4>
+                          <div className="space-y-1">
+                            <p className="text-lg font-bold text-primary">
+                              {formatPrice(result.price, result.currency)}
+                            </p>
+                            {result.shippingEstimate && (
+                              <p className="text-xs text-muted-foreground">
+                                + {result.shippingEstimate}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-1">
+                              <span className="text-muted-foreground">
+                                {result.marketplace}
+                              </span>
+                            </div>
+                            {result.rating && (
+                              <div className="flex items-center gap-1">
+                                <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                                <span className="text-muted-foreground">
+                                  {result.rating.toFixed(1)}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {result.seller}
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="w-full"
+                            onClick={() => window.open(result.url, "_blank")}
+                          >
+                            <ExternalLink className="mr-2 h-3 w-3" />
+                            Ver detalhes
+                          </Button>
+                        </div>
+                      </Card>
+                    </motion.div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
           </motion.div>
         )}
 
