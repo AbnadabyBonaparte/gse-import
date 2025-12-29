@@ -44,3 +44,4 @@ Para documentação atual e atualizada, consulte:
 **Razão:** Alinhamento com stack imutável (Next.js 15 + shadcn/ui + Supabase + n8n)
 
 
+

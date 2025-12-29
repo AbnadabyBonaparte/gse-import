@@ -160,3 +160,4 @@ if __name__ == "__main__":
     print(f"TOTAL: R$ {breakdown.total_cost_brl:.2f}")
 
 
+

@@ -153,3 +153,4 @@ CREATE TRIGGER update_tracking_updated_at BEFORE UPDATE ON tracking
 -- CREATE POLICY "Users can view own orders" ON orders FOR SELECT USING (auth.uid() = client_id);
 
 
+

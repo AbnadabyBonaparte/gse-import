@@ -7,3 +7,4 @@ Stack: Next.js 15 + shadcn/ui + Supabase + Drizzle ORM + n8n + IA Provider-Agnos
 "Se existe no mundo, chega na sua garagem."
 
 
+

@@ -135,3 +135,4 @@
 **Status Final:** ✅ Bugs críticos corrigidos. Busca otimizada para peças simples e raras.
 
 
+

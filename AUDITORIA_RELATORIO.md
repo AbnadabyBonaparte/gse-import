@@ -154,3 +154,4 @@ Stack: Next.js 15 + shadcn/ui + Supabase + Drizzle ORM + n8n + IA Provider-Agnos
 **Auditoria concluída. Projeto 100% alinhado com stack imutável.** 🏎️🔥
 
 
+

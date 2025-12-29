@@ -1,0 +1,53 @@
+# Configuração do Continue com Llama
+# Documentação: https://docs.continue.dev/reference
+
+name: GSE Import - Llama Configuration
+version: 1.0.0
+schema: v1
+
+# Modelos disponíveis
+# https://docs.continue.dev/customization/models
+models:
+  # Llama via Ollama (local)
+  - name: Llama 2
+    provider: ollama
+    model: llama2
+    baseUrl: http://localhost:11434
+    
+  # Llama 3 (se instalado)
+  - name: Llama 3
+    provider: ollama
+    model: llama3
+    baseUrl: http://localhost:11434
+    
+  # Llama Code (otimizado para código)
+  - name: Llama Code
+    provider: ollama
+    model: codegemma
+    baseUrl: http://localhost:11434
+    
+  # Modelos alternativos úteis
+  - uses: ollama/qwen2.5-coder-7b
+    baseUrl: http://localhost:11434
+
+# Configuração de embedding para busca de contexto
+tabAutocompleteModel:
+  name: Llama Tab Autocomplete
+  provider: ollama
+  model: codegemma
+  baseUrl: http://localhost:11434
+
+# MCP Servers
+mcpServers:
+  - uses: anthropic/memory-mcp
+
+# Configurações gerais
+customCommands:
+  - name: "Chat with Llama"
+    prompt: "You are a helpful coding assistant powered by Llama. Answer the user's question about their code."
+    
+# Configuração de contexto
+contextProviders:
+  - name: "codebase"
+  - name: "docs"
+  - name: "terminal"

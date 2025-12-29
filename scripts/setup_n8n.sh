@@ -49,3 +49,4 @@ echo "   3. Configure as credenciais no n8n"
 echo ""
 
 
+

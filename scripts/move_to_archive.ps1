@@ -33,3 +33,4 @@ foreach ($file in $filesToMove) {
 Write-Host "`n✅ Concluído! Arquivos movidos para docs\archive\`n" -ForegroundColor Green
 
 
+

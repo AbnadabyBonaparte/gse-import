@@ -1,9 +1,10 @@
-// src/components/scanner/VisionResultDisplay.tsx
+// src/components/scanner/FiscalVisionResultDisplay.tsx
 "use client";
 
 import * as React from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
-import { CheckCircle2, Search, ExternalLink, Star, Loader2, Calculator } from "lucide-react";
+import { Search, Loader2, Calculator, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,11 +12,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { VisionResult, HunterResult } from "@/types/gse";
 import { formatPrice } from "@/utils/format-price";
 import { useExchangeRate } from "@/hooks/use-exchange-rate";
-import { useFiscalCalculation, FiscalCalculationResponse } from "@/hooks/use-fiscal-calculation";
-import { FiscalBreakdown } from "@/components/scanner/FiscalBreakdown";
 import { cn } from "@/lib/utils";
+import { FiscalBreakdown } from "@/components/scanner/FiscalBreakdown";
 
-interface VisionResultDisplayProps {
+interface FiscalVisionResultDisplayProps {
   visionResult: VisionResult;
   imagePreview: string;
   hunterResults: HunterResult[];
@@ -24,57 +24,82 @@ interface VisionResultDisplayProps {
   handleRemoveImage: () => void;
 }
 
-export default function VisionResultDisplay({
+interface FiscalCalculationResult {
+  breakdown: Array<{
+    label: string;
+    value: number;
+    percentage?: number;
+  }>;
+  totalGuaranteed: number;
+  currency: "BRL";
+  guaranteeNote: string;
+}
+
+export default function FiscalVisionResultDisplay({
   visionResult,
   imagePreview,
   hunterResults,
   isSearching,
   handleSearch,
   handleRemoveImage,
-}: VisionResultDisplayProps) {
+}: FiscalVisionResultDisplayProps) {
   const { exchangeRate } = useExchangeRate();
-  const { calculate, isLoading: isCalculating } = useFiscalCalculation();
-  const [fiscalResults, setFiscalResults] = React.useState<Record<number, FiscalCalculationResponse>>({});
+  const [calculating, setCalculating] = useState<Record<string, boolean>>({});
+  const [fiscalResults, setFiscalResults] = useState<Record<string, FiscalCalculationResult>>({});
 
-  // Função para inferir país de origem baseado no marketplace
-  const getOriginCountry = (marketplace: string): string => {
-    const marketplaceMap: Record<string, string> = {
-      'eBay': 'US',
-      'Taobao': 'CN',
-      'AliExpress': 'CN',
-      'Amazon': 'US',
-      'RockAuto': 'US',
-      'AutoZone': 'US',
-      'PartsGeek': 'US',
-      'default': 'US',
+  // Função para calcular o custo total garantido
+  const calculateFiscalCost = async (result: HunterResult, index: number) => {
+    setCalculating(prev => ({ ...prev, [index]: true }));
+    
+    try {
+      // Estimar peso com base no NCM (valores de exemplo)
+      const weightEstimate = estimateWeight(visionResult.ncmSuggestion || '8708');
+      
+      const response = await fetch('/api/fiscal/calculate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          price: result.price,
+          currency: result.currency,
+          weightKg: weightEstimate,
+          ncm: visionResult.ncmSuggestion || '8708',
+          originCountry: result.originCountry || 'CN',
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Erro no cálculo fiscal');
+      }
+      
+      const fiscalData: FiscalCalculationResult = await response.json();
+      setFiscalResults(prev => ({ ...prev, [index]: fiscalData }));
+    } catch (error) {
+      console.error('Erro ao calcular custo fiscal:', error);
+    } finally {
+      setCalculating(prev => ({ ...prev, [index]: false }));
+    }
+  };
+
+  // Função para estimar peso com base no NCM
+  const estimateWeight = (ncm: string): number => {
+    // Valores de exemplo - em produção buscaria de uma tabela
+    const weightMap: Record<string, number> = {
+      '8708': 2.5, // partes automotivas
+      '8512': 0.5, // elétricos
+      '8407': 15,  // motores
+      '8408': 15,  // motores
+      'default': 1,
     };
-    return marketplaceMap[marketplace] || marketplaceMap.default;
+    
+    return weightMap[ncm] || weightMap.default;
   };
 
-  // Função para estimar peso baseado no tipo de peça (placeholder - futuro: IA ou banco)
-  const estimateWeight = (): number => {
-    // Estimativa simples: 1kg para peças pequenas, 5kg para médias, 10kg para grandes
-    // Futuro: usar IA ou banco de dados de peças
-    return 2.0; // 2kg padrão
-  };
-
-  const handleCalculateFiscal = async (result: HunterResult, index: number) => {
-    if (!visionResult.ncmSuggestion) {
-      alert('NCM não disponível. Complete a identificação da peça primeiro.');
-      return;
-    }
-
-    const fiscalResult = await calculate({
-      price: result.price,
-      currency: result.currency,
-      weightKg: estimateWeight(),
-      ncm: visionResult.ncmSuggestion,
-      originCountry: getOriginCountry(result.marketplace),
-    });
-
-    if (fiscalResult) {
-      setFiscalResults((prev) => ({ ...prev, [index]: fiscalResult }));
-    }
+  // Função para confirmar pedido (placeholder)
+  const handleConfirmOrder = (index: number) => {
+    const result = hunterResults[index];
+    alert(`Pedido confirmado para: ${result.title}\nValor garantido: ${fiscalResults[index]?.totalGuaranteed.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`);
   };
 
   return (
@@ -83,7 +108,7 @@ export default function VisionResultDisplay({
         <div className="space-y-4">
           <div className="flex items-start gap-4">
             <div className="rounded-full bg-primary/10 p-2">
-              <CheckCircle2 className="h-6 w-6 text-primary" />
+              <ShieldCheck className="h-6 w-6 text-primary" />
             </div>
             <div className="flex-1 space-y-2">
               <h3 className="text-lg font-semibold text-foreground">
@@ -303,69 +328,52 @@ export default function VisionResultDisplay({
                     <div className="text-xs text-muted-foreground">
                       {result.seller}
                     </div>
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => window.open(result.url, "_blank")}
+                    
+                    {/* Botão para calcular custo fiscal */}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => calculateFiscalCost(result, index)}
+                      disabled={calculating[index]}
+                    >
+                      {calculating[index] ? (
+                        <>
+                          <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                          Calculando...
+                        </>
+                      ) : (
+                        <>
+                          <Calculator className="mr-2 h-3 w-3" />
+                          Calcular custo total
+                        </>
+                      )}
+                    </Button>
+                    
+                    {/* Exibir resultado fiscal se calculado */}
+                    {fiscalResults[index] && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        transition={{ duration: 0.3 }}
+                        className="mt-3"
                       >
-                        <ExternalLink className="mr-2 h-3 w-3" />
-                        Ver detalhes
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="default"
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => handleCalculateFiscal(result, index)}
-                        disabled={isCalculating || !visionResult.ncmSuggestion}
-                      >
-                        {isCalculating ? (
-                          <>
-                            <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                            Calculando...
-                          </>
-                        ) : (
-                          <>
-                            <Calculator className="mr-2 h-3 w-3" />
-                            Custo total
-                          </>
-                        )}
-                      </Button>
-                    </div>
+                        <FiscalBreakdown
+                          breakdown={fiscalResults[index].breakdown}
+                          totalGuaranteed={fiscalResults[index].totalGuaranteed}
+                          guaranteeNote={fiscalResults[index].guaranteeNote}
+                          onConfirm={() => handleConfirmOrder(index)}
+                        />
+                      </motion.div>
+                    )}
                   </div>
                 </Card>
               </motion.div>
             ))}
           </div>
-          
-          {/* Exibir breakdowns fiscais */}
-          {Object.entries(fiscalResults).map(([indexStr, fiscalResult]) => {
-            const index = parseInt(indexStr);
-            return (
-              <motion.div
-                key={`fiscal-${index}`}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mt-6"
-              >
-                <FiscalBreakdown
-                  breakdown={fiscalResult.breakdown}
-                  totalGuaranteed={fiscalResult.totalGuaranteed}
-                  guaranteeNote={fiscalResult.guaranteeNote}
-                  onConfirm={() => {
-                    // TODO: Implementar confirmação de pedido
-                    alert('Funcionalidade de confirmação de pedido será implementada em breve.');
-                  }}
-                />
-              </motion.div>
-            );
-          })}
         </motion.div>
       )}
     </div>
   );
 }
-
